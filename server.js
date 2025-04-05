@@ -271,6 +271,37 @@ app.get('/:shortCode', (req, res, next) => {
   next();
 });
 
+// Special page handlers for success, fail, and currency payment pages
+app.get('/success.html', (req, res) => {
+  const invoiceId = req.query.invoiceId;
+  // Serve the success.html file directly
+  res.sendFile(path.join(__dirname, 'success.html'));
+});
+
+app.get('/fail.html', (req, res) => {
+  const invoiceId = req.query.invoiceId;
+  const reason = req.query.reason;
+  // Serve the fail.html file directly
+  res.sendFile(path.join(__dirname, 'fail.html'));
+});
+
+app.get('/currencypayment.html', (req, res) => {
+  const pid = req.query.pid;
+  // Serve the currencypayment.html file directly
+  res.sendFile(path.join(__dirname, 'currencypayment.html'));
+});
+
+// Also add a catch-all route to handle any 404s more gracefully
+app.use((req, res, next) => {
+  // Check if the request is for an HTML file
+  if (req.path.endsWith('.html') || !req.path.includes('.')) {
+    console.log(`404 for ${req.path} - redirecting to landing`);
+    // Redirect to landing page if the HTML file doesn't exist
+    return res.redirect('/landing.html');
+  }
+  next();
+});
+
 // Get browser info from user agent
 function getBrowserInfo(userAgent) {
   if (!userAgent) return { browser: 'Unknown', os: 'Unknown', device: 'Unknown' };

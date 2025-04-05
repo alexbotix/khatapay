@@ -477,9 +477,17 @@ app.post('/api/generatePaymentLink', (req, res) => {
 
     const invoiceId = crypto.randomBytes(8).toString('hex').toUpperCase();
     const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.get('host');
+    
+    // Generate payment link that works with both www and non-www domains
+    // Get the base domain without www if it exists
+    let baseHost = host;
+    if (host.startsWith('www.')) {
+      baseHost = host.substring(4); // Remove 'www.' prefix
+    }
     
     // Use the redirect file instead of landing.html
-    const paymentLink = `${protocol}://${req.get('host')}/${PAYMENT_REDIRECT_FILE}?pid=${invoiceId}`;
+    const paymentLink = `${protocol}://${baseHost}/${PAYMENT_REDIRECT_FILE}?pid=${invoiceId}`;
 
     // Create the current timestamp properly and log it
     const now = new Date();
@@ -514,9 +522,17 @@ app.post('/api/generateFreeLink', (req, res) => {
 
     const invoiceId = crypto.randomBytes(8).toString('hex').toUpperCase();
     const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const host = req.get('host');
+    
+    // Generate payment link that works with both www and non-www domains
+    // Get the base domain without www if it exists
+    let baseHost = host;
+    if (host.startsWith('www.')) {
+      baseHost = host.substring(4); // Remove 'www.' prefix
+    }
     
     // Use the redirect file instead of landing.html
-    const paymentLink = `${protocol}://${req.get('host')}/${PAYMENT_REDIRECT_FILE}?pid=${invoiceId}`;
+    const paymentLink = `${protocol}://${baseHost}/${PAYMENT_REDIRECT_FILE}?pid=${invoiceId}`;
 
     // Create the current timestamp properly and log it
     const now = new Date();

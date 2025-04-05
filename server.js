@@ -270,7 +270,25 @@ app.get('/:shortCode', (req, res, next) => {
   // Otherwise just continue to the next middleware/route
   next();
 });
+// Special page handlers for success, fail, and currency payment pages
+app.get('/success.html', (req, res) => {
+  const invoiceId = req.query.invoiceId;
+  // Serve the success.html file directly
+  res.sendFile(path.join(__dirname, 'success.html'));
+});
 
+app.get('/fail.html', (req, res) => {
+  const invoiceId = req.query.invoiceId;
+  const reason = req.query.reason;
+  // Serve the fail.html file directly
+  res.sendFile(path.join(__dirname, 'fail.html'));
+});
+
+app.get('/currencypayment.html', (req, res) => {
+  const pid = req.query.pid;
+  // Serve the currencypayment.html file directly
+  res.sendFile(path.join(__dirname, 'currencypayment.html'));
+});
 // Get browser info from user agent
 function getBrowserInfo(userAgent) {
   if (!userAgent) return { browser: 'Unknown', os: 'Unknown', device: 'Unknown' };

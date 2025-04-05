@@ -272,22 +272,83 @@ app.get('/:shortCode', (req, res, next) => {
 });
 // Special page handlers for success, fail, and currency payment pages
 app.get('/success.html', (req, res) => {
-  const invoiceId = req.query.invoiceId;
-  // Serve the success.html file directly
-  res.sendFile(path.join(__dirname, 'success.html'));
+  const filePath = path.resolve(__dirname, 'success.html');
+  console.log(`Serving success.html from: ${filePath}`);
+  
+  // Check if file exists before sending
+  if (fs.existsSync(filePath)) {
+    return res.sendFile(filePath);
+  } else {
+    console.error(`success.html not found at: ${filePath}`);
+    return res.status(200).send(`
+      <html>
+        <head><title>Payment Successful</title></head>
+        <body>
+          <h1>Payment Successful</h1>
+          <p>Your payment has been processed successfully.</p>
+          <p>Invoice ID: ${req.query.invoiceId || 'Not provided'}</p>
+        </body>
+      </html>
+    `);
+  }
 });
 
 app.get('/fail.html', (req, res) => {
-  const invoiceId = req.query.invoiceId;
-  const reason = req.query.reason;
-  // Serve the fail.html file directly
-  res.sendFile(path.join(__dirname, 'fail.html'));
+  const filePath = path.resolve(__dirname, 'fail.html');
+  console.log(`Serving fail.html from: ${filePath}`);
+  
+  // Check if file exists before sending
+  if (fs.existsSync(filePath)) {
+    return res.sendFile(filePath);
+  } else {
+    console.error(`fail.html not found at: ${filePath}`);
+    return res.status(200).send(`
+      <html>
+        <head><title>Payment Failed</title></head>
+        <body>
+          <h1>Payment Failed</h1>
+          <p>Your payment could not be processed.</p>
+          <p>Reason: ${req.query.reason || 'Unknown error'}</p>
+          <p>Invoice ID: ${req.query.invoiceId || 'Not provided'}</p>
+        </body>
+      </html>
+    `);
+  }
 });
 
 app.get('/currencypayment.html', (req, res) => {
-  const pid = req.query.pid;
-  // Serve the currencypayment.html file directly
-  res.sendFile(path.join(__dirname, 'currencypayment.html'));
+  const filePath = path.resolve(__dirname, 'currencypayment.html');
+  console.log(`Serving currencypayment.html from: ${filePath}`);
+  
+  // Check if file exists before sending
+  if (fs.existsSync(filePath)) {
+    return res.sendFile(filePath);
+  } else {
+    console.error(`currencypayment.html not found at: ${filePath}`);
+    return res.redirect(`/payment.html?pid=${req.query.pid}`);
+  }
+});
+
+app.get('/bankpage.html', (req, res) => {
+  const filePath = path.resolve(__dirname, 'bankpage.html');
+  console.log(`Serving bankpage.html from: ${filePath}`);
+  
+  // Check if file exists before sending
+  if (fs.existsSync(filePath)) {
+    return res.sendFile(filePath);
+  } else {
+    console.error(`bankpage.html not found at: ${filePath}`);
+    return res.status(200).send(`
+      <html>
+        <head><title>Bank Verification</title></head>
+        <body>
+          <h1>Bank Verification</h1>
+          <p>Please wait while we verify your payment details.</p>
+          <p>Invoice ID: ${req.query.invoiceId || 'Not provided'}</p>
+        </body>
+      </html>
+    `);
+  }
 });
 // Get browser info from user agent
 function getBrowserInfo(userAgent) {

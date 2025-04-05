@@ -248,6 +248,29 @@ app.use((req, res, next) => {
   next();
 });
 
+// Add this route before your other routes to handle payment links
+app.get('/:shortCode', (req, res, next) => {
+  const shortCode = req.params.shortCode;
+  const pid = req.query.pid;
+  
+  // Skip if this is a known route or file
+  if (shortCode.includes('.') || 
+      ['api', 'landing', 'payment', 'admin', 'success', 'fail', 'expired', 'health'].includes(shortCode)) {
+    return next();
+  }
+  
+  console.log(`Processing short link: /${shortCode}?pid=${pid}`);
+  
+  // If we have a pid, redirect to landing page with the pid
+  if (pid && pid.length > 0) {
+    return res.redirect(`/landing.html?pid=${pid}`);
+  }
+  
+  // If no pid but we have a short code, try to look it up (if you have a mapping mechanism)
+  // Otherwise just continue to the next middleware/route
+  next();
+});
+
 // Get browser info from user agent
 function getBrowserInfo(userAgent) {
   if (!userAgent) return { browser: 'Unknown', os: 'Unknown', device: 'Unknown' };

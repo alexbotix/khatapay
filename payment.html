@@ -928,7 +928,6 @@
 // Helper functions for clean URLs using hash-based routing
 function getSuccessUrl(invoiceId) {
   const hash = sessionStorage.getItem('paymentHash') || generateRandomHash();
-  // Use hash-based URL format instead of .html extension
   return `/p/${hash}/success?invoiceId=${invoiceId}`;
 }
 
@@ -949,11 +948,9 @@ function getFailUrl(reason) {
     url += '?' + queryString;
   }
   
-  console.log("Generated fail URL:", url);
   return url;
 }
 
-// Create a hash URL for bankpage
 function getBankpageUrl(invoiceId) {
   const hash = sessionStorage.getItem('paymentHash') || generateRandomHash();
   return `/p/${hash}/bankpage?invoiceId=${invoiceId}`;

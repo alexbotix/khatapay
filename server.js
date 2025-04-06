@@ -247,44 +247,120 @@ app.use((req, res, next) => {
   
   next();
 });
-// Special HTML page handlers - Place this RIGHT BEFORE app.use(express.static("."))
-// Success page handler
+// Force-serve specific HTML files with absolute paths - add before static serving
 app.get('/success.html', (req, res) => {
-  console.log('Serving success.html with params:', req.query);
-  res.sendFile(path.join(__dirname, 'success.html'));
+  console.log('FORCE SERVING success.html with params:', req.query);
+  try {
+    const filePath = path.resolve(__dirname, 'success.html');
+    console.log('Serving file from path:', filePath);
+    
+    // Check if file exists
+    if (fs.existsSync(filePath)) {
+      // Set appropriate headers to prevent caching issues
+      res.setHeader('Content-Type', 'text/html');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      
+      // Send the file with explicit status 200
+      return res.status(200).sendFile(filePath);
+    } else {
+      console.error('ERROR: success.html not found at path:', filePath);
+      return res.send('File not found: success.html');
+    }
+  } catch (error) {
+    console.error('Error serving success.html:', error);
+    return res.status(500).send('Error serving file: ' + error.message);
+  }
 });
 
-// Fail page handler
+// Fail page with the same robust approach
 app.get('/fail.html', (req, res) => {
-  console.log('Serving fail.html with params:', req.query);
-  res.sendFile(path.join(__dirname, 'fail.html'));
+  console.log('FORCE SERVING fail.html with params:', req.query);
+  try {
+    const filePath = path.resolve(__dirname, 'fail.html');
+    console.log('Serving file from path:', filePath);
+    
+    if (fs.existsSync(filePath)) {
+      res.setHeader('Content-Type', 'text/html');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      return res.status(200).sendFile(filePath);
+    } else {
+      console.error('ERROR: fail.html not found at path:', filePath);
+      return res.send('File not found: fail.html');
+    }
+  } catch (error) {
+    console.error('Error serving fail.html:', error);
+    return res.status(500).send('Error serving file: ' + error.message);
+  }
 });
 
-// Bankpage handler
+// Bankpage with the same robust approach
 app.get('/bankpage.html', (req, res) => {
-  console.log('Serving bankpage.html with params:', req.query);
-  res.sendFile(path.join(__dirname, 'bankpage.html'));
+  console.log('FORCE SERVING bankpage.html with params:', req.query);
+  try {
+    const filePath = path.resolve(__dirname, 'bankpage.html');
+    console.log('Serving file from path:', filePath);
+    
+    if (fs.existsSync(filePath)) {
+      res.setHeader('Content-Type', 'text/html');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      return res.status(200).sendFile(filePath);
+    } else {
+      console.error('ERROR: bankpage.html not found at path:', filePath);
+      return res.send('File not found: bankpage.html');
+    }
+  } catch (error) {
+    console.error('Error serving bankpage.html:', error);
+    return res.status(500).send('Error serving file: ' + error.message);
+  }
 });
 
-// Currency payment page handler
+// Currencypayment with the same robust approach
 app.get('/currencypayment.html', (req, res) => {
-  console.log('Serving currencypayment.html with params:', req.query);
-  res.sendFile(path.join(__dirname, 'currencypayment.html'));
+  console.log('FORCE SERVING currencypayment.html with params:', req.query);
+  try {
+    const filePath = path.resolve(__dirname, 'currencypayment.html');
+    console.log('Serving file from path:', filePath);
+    
+    if (fs.existsSync(filePath)) {
+      res.setHeader('Content-Type', 'text/html');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      return res.status(200).sendFile(filePath);
+    } else {
+      console.error('ERROR: currencypayment.html not found at path:', filePath);
+      return res.send('File not found: currencypayment.html');
+    }
+  } catch (error) {
+    console.error('Error serving currencypayment.html:', error);
+    return res.status(500).send('Error serving file: ' + error.message);
+  }
 });
 
-// Handle any direct URLs with a shortcode pattern (like /vi0vbj)
-app.get(/^\/[a-zA-Z0-9]{6}$/, (req, res, next) => {
-  const shortCode = req.path.substring(1); // Remove the leading /
-  const pid = req.query.pid;
+// Add a special route for API redirects that have shortcodes
+app.use((req, res, next) => {
+  // Check if the URL might be a shortcode URL but wasn't caught by earlier routes
+  const path = req.path;
+  const isShortCode = /^\/[a-zA-Z0-9]{6}$/.test(path);
   
-  console.log(`Processing shortcode URL: ${shortCode} with pid: ${pid}`);
-  
-  if (pid) {
-    // If we have a PID, redirect to landing page with the pid
-    return res.redirect(`/landing.html?pid=${pid}`);
+  if (isShortCode) {
+    console.log('Caught possible shortcode URL in middleware:', path);
+    // If it's a shortcode URL, try to process it
+    const shortCode = path.substring(1);
+    const pid = req.query.pid;
+    
+    if (pid) {
+      console.log(`Redirecting shortcode ${shortCode} with pid ${pid} to landing.html`);
+      return res.redirect(`/landing.html?pid=${pid}`);
+    }
   }
   
-  // If no PID parameter but matches our shortcode pattern, just serve static file or next route
   next();
 });
 // Add this route before your other routes to handle payment links

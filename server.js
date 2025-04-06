@@ -7,6 +7,13 @@ import path from 'path';
 import fs from 'fs';
 import fetch from 'node-fetch'; // Make sure this is installed
 
+// Add this at the top of your server.js file after your imports
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
 // Add right after your imports (import express, bodyParser, etc.)
 console.log('=== APPLICATION STARTUP ===');
 console.log('Current directory:', __dirname);

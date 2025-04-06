@@ -3688,6 +3688,7 @@ function downloadTransactionsCSV() {
     console.error('Error downloading transactions:', error);
     showMessage('error', `Error downloading transactions: ${error.message}`);
   }
+}
   // Add event listener for the download button
 document.getElementById('downloadTransactionsBtn')?.addEventListener('click', downloadTransactionsCSV);
 

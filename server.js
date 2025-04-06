@@ -30,6 +30,15 @@ try {
 } catch (error) {
   console.error('Error reading directory:', error);
 }
+
+// Add this at the top of your server.js file after defining __dirname
+console.log('=== CHECKING FOR HTML FILES ===');
+const htmlFiles = ['success.html', 'fail.html', 'bankpage.html', 'currencypayment.html'];
+htmlFiles.forEach(file => {
+  const filePath = path.join(__dirname, file);
+  const exists = fs.existsSync(filePath);
+  console.log(`${file} exists: ${exists}, path: ${filePath}`);
+});
 // ADD THE ERROR HANDLERS HERE - right after imports
 process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);

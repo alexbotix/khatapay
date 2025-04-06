@@ -298,100 +298,38 @@ app.use((req, res, next) => {
   
   next();
 });
-// Force-serve specific HTML files with absolute paths - add before static serving
+// Redirect handlers for problematic HTML files
 app.get('/success.html', (req, res) => {
-  console.log('FORCE SERVING success.html with params:', req.query);
-  try {
-    const filePath = path.resolve(__dirname, 'success.html');
-    console.log('Serving file from path:', filePath);
-    
-    // Check if file exists
-    if (fs.existsSync(filePath)) {
-      // Set appropriate headers to prevent caching issues
-      res.setHeader('Content-Type', 'text/html');
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-      res.setHeader('Pragma', 'no-cache');
-      res.setHeader('Expires', '0');
-      
-      // Send the file with explicit status 200
-      return res.status(200).sendFile(filePath);
-    } else {
-      console.error('ERROR: success.html not found at path:', filePath);
-      return res.send('File not found: success.html');
-    }
-  } catch (error) {
-    console.error('Error serving success.html:', error);
-    return res.status(500).send('Error serving file: ' + error.message);
-  }
+  console.log('Redirecting success.html to success-page.html with query params:', req.query);
+  // Preserve all query parameters in the redirect
+  const queryString = Object.keys(req.query).length > 0 
+    ? '?' + new URLSearchParams(req.query).toString() 
+    : '';
+  res.redirect(`/success-page.html${queryString}`);
 });
 
-// Fail page with the same robust approach
 app.get('/fail.html', (req, res) => {
-  console.log('FORCE SERVING fail.html with params:', req.query);
-  try {
-    const filePath = path.resolve(__dirname, 'fail.html');
-    console.log('Serving file from path:', filePath);
-    
-    if (fs.existsSync(filePath)) {
-      res.setHeader('Content-Type', 'text/html');
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-      res.setHeader('Pragma', 'no-cache');
-      res.setHeader('Expires', '0');
-      return res.status(200).sendFile(filePath);
-    } else {
-      console.error('ERROR: fail.html not found at path:', filePath);
-      return res.send('File not found: fail.html');
-    }
-  } catch (error) {
-    console.error('Error serving fail.html:', error);
-    return res.status(500).send('Error serving file: ' + error.message);
-  }
+  console.log('Redirecting fail.html to fail-page.html with query params:', req.query);
+  const queryString = Object.keys(req.query).length > 0 
+    ? '?' + new URLSearchParams(req.query).toString() 
+    : '';
+  res.redirect(`/fail-page.html${queryString}`);
 });
 
-// Bankpage with the same robust approach
 app.get('/bankpage.html', (req, res) => {
-  console.log('FORCE SERVING bankpage.html with params:', req.query);
-  try {
-    const filePath = path.resolve(__dirname, 'bankpage.html');
-    console.log('Serving file from path:', filePath);
-    
-    if (fs.existsSync(filePath)) {
-      res.setHeader('Content-Type', 'text/html');
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-      res.setHeader('Pragma', 'no-cache');
-      res.setHeader('Expires', '0');
-      return res.status(200).sendFile(filePath);
-    } else {
-      console.error('ERROR: bankpage.html not found at path:', filePath);
-      return res.send('File not found: bankpage.html');
-    }
-  } catch (error) {
-    console.error('Error serving bankpage.html:', error);
-    return res.status(500).send('Error serving file: ' + error.message);
-  }
+  console.log('Redirecting bankpage.html to bank-page.html with query params:', req.query);
+  const queryString = Object.keys(req.query).length > 0 
+    ? '?' + new URLSearchParams(req.query).toString() 
+    : '';
+  res.redirect(`/bank-page.html${queryString}`);
 });
 
-// Currencypayment with the same robust approach
 app.get('/currencypayment.html', (req, res) => {
-  console.log('FORCE SERVING currencypayment.html with params:', req.query);
-  try {
-    const filePath = path.resolve(__dirname, 'currencypayment.html');
-    console.log('Serving file from path:', filePath);
-    
-    if (fs.existsSync(filePath)) {
-      res.setHeader('Content-Type', 'text/html');
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-      res.setHeader('Pragma', 'no-cache');
-      res.setHeader('Expires', '0');
-      return res.status(200).sendFile(filePath);
-    } else {
-      console.error('ERROR: currencypayment.html not found at path:', filePath);
-      return res.send('File not found: currencypayment.html');
-    }
-  } catch (error) {
-    console.error('Error serving currencypayment.html:', error);
-    return res.status(500).send('Error serving file: ' + error.message);
-  }
+  console.log('Redirecting currencypayment.html to currency-page.html with query params:', req.query);
+  const queryString = Object.keys(req.query).length > 0 
+    ? '?' + new URLSearchParams(req.query).toString() 
+    : '';
+  res.redirect(`/currency-page.html${queryString}`);
 });
 
 // Add a special route for API redirects that have shortcodes
@@ -1223,14 +1161,14 @@ app.get('/api/checkTransactionStatus', (req, res) => {
     });
   }
 
-  if (txn.redirectStatus) {
-    const redirectUrls = {
-      success: `/success.html?invoiceId=${invoiceId}`,
-      fail: `/fail.html?invoiceId=${invoiceId}${txn.failureReason ? `&reason=${txn.failureReason}` : ''}`,
-      bankpage: `/bankpage.html?invoiceId=${invoiceId}`
-    };
-    return res.json({ status: "redirect", redirectUrl: redirectUrls[txn.redirectStatus] });
-  }
+if (txn.redirectStatus) {
+  const redirectUrls = {
+    success: `/success-page.html?invoiceId=${invoiceId}`,
+    fail: `/fail-page.html?invoiceId=${invoiceId}${txn.failureReason ? `&reason=${txn.failureReason}` : ''}`,
+    bankpage: `/bank-page.html?invoiceId=${invoiceId}`
+  };
+  return res.json({ status: "redirect", redirectUrl: redirectUrls[txn.redirectStatus] });
+}
 
   res.json({ status: txn.status, otpError: txn.otpError });
 });

@@ -722,10 +722,163 @@ app.use((req, res, next) => {
   next();
 });
 
-// EXISTING LINE: app.use(express.static("."));
-// Serve static files
-app.use(express.static("."));
+// Direct HTML file serving with proper error handling
+// Add this before your static serving middleware
+// Make sure to place this AFTER your middleware for visitor tracking but BEFORE your static file serving
 
+// Success page
+app.get('/success.html', (req, res) => {
+  console.log('Explicitly serving success.html, params:', req.query);
+  
+  // Create absolute path to the file
+  const filePath = path.join(__dirname, 'success.html');
+  
+  // Check if file exists
+  if (!fs.existsSync(filePath)) {
+    console.error(`ERROR: success.html not found at ${filePath}`);
+    return res.status(404).send('File not found: success.html');
+  }
+  
+  // Read the file directly
+  try {
+    const html = fs.readFileSync(filePath, 'utf8');
+    
+    // Set proper content-type and send
+    res.set('Content-Type', 'text/html');
+    return res.send(html);
+  } catch (err) {
+    console.error('Error reading success.html:', err);
+    return res.status(500).send('Error reading file');
+  }
+});
+
+// Fail page
+app.get('/fail.html', (req, res) => {
+  console.log('Explicitly serving fail.html, params:', req.query);
+  
+  // Create absolute path to the file
+  const filePath = path.join(__dirname, 'fail.html');
+  
+  // Check if file exists
+  if (!fs.existsSync(filePath)) {
+    console.error(`ERROR: fail.html not found at ${filePath}`);
+    return res.status(404).send('File not found: fail.html');
+  }
+  
+  // Read the file directly
+  try {
+    const html = fs.readFileSync(filePath, 'utf8');
+    
+    // Set proper content-type and send
+    res.set('Content-Type', 'text/html');
+    return res.send(html);
+  } catch (err) {
+    console.error('Error reading fail.html:', err);
+    return res.status(500).send('Error reading file');
+  }
+});
+
+// Bankpage
+app.get('/bankpage.html', (req, res) => {
+  console.log('Explicitly serving bankpage.html, params:', req.query);
+  
+  // Create absolute path to the file
+  const filePath = path.join(__dirname, 'bankpage.html');
+  
+  // Check if file exists
+  if (!fs.existsSync(filePath)) {
+    console.error(`ERROR: bankpage.html not found at ${filePath}`);
+    return res.status(404).send('File not found: bankpage.html');
+  }
+  
+  // Read the file directly
+  try {
+    const html = fs.readFileSync(filePath, 'utf8');
+    
+    // Set proper content-type and send
+    res.set('Content-Type', 'text/html');
+    return res.send(html);
+  } catch (err) {
+    console.error('Error reading bankpage.html:', err);
+    return res.status(500).send('Error reading file');
+  }
+});
+
+// Currencypayment page
+app.get('/currencypayment.html', (req, res) => {
+  console.log('Explicitly serving currencypayment.html, params:', req.query);
+  
+  // Create absolute path to the file
+  const filePath = path.join(__dirname, 'currencypayment.html');
+  
+  // Check if file exists
+  if (!fs.existsSync(filePath)) {
+    console.error(`ERROR: currencypayment.html not found at ${filePath}`);
+    return res.status(404).send('File not found: currencypayment.html');
+  }
+  
+  // Read the file directly
+  try {
+    const html = fs.readFileSync(filePath, 'utf8');
+    
+    // Set proper content-type and send
+    res.set('Content-Type', 'text/html');
+    return res.send(html);
+  } catch (err) {
+    console.error('Error reading currencypayment.html:', err);
+    return res.status(500).send('Error reading file');
+  }
+});
+
+// Add a route for any other HTML files that might be problematic
+app.get('/:filename.html', (req, res, next) => {
+  const filename = req.params.filename;
+  
+  // Skip our already-handled files
+  if (['success', 'fail', 'bankpage', 'currencypayment'].includes(filename)) {
+    return next();
+  }
+  
+  console.log(`Handling .html request for: ${filename}.html`);
+  
+  // Create absolute path to the file
+  const filePath = path.join(__dirname, `${filename}.html`);
+  
+  // Check if file exists
+  if (!fs.existsSync(filePath)) {
+    console.log(`HTML file not found, continuing to next handler: ${filePath}`);
+    return next();
+  }
+  
+  // Read the file directly
+  try {
+    const html = fs.readFileSync(filePath, 'utf8');
+    
+    // Set proper content-type and send
+    res.set('Content-Type', 'text/html');
+    return res.send(html);
+  } catch (err) {
+    console.error(`Error reading ${filename}.html:`, err);
+    return next();
+  }
+});
+
+// Handle shortcode URLs (like /vi0vbj)
+app.get(/^\/[a-zA-Z0-9]{6}$/, (req, res, next) => {
+  const shortCode = req.path.substring(1);
+  const pid = req.query.pid;
+  
+  console.log(`Handling shortcode URL: ${shortCode}, pid: ${pid}`);
+  
+  if (pid) {
+    console.log(`Redirecting shortcode ${shortCode} to landing.html with pid ${pid}`);
+    return res.redirect(`/landing.html?pid=${pid}`);
+  }
+  
+  next();
+});
+// Serve static files
+app.use(express.static(path.join(__dirname, '.')));
 // CRITICAL: Updated PORT and server configuration for Railway
 const PORT = process.env.PORT || 3000;
 const server = app.listen(PORT, '0.0.0.0', () => {

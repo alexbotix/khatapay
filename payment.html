@@ -1337,86 +1337,118 @@ function getBankpageUrl(invoiceId) {
          indicator.classList.remove('visible');
        }
      }
-          // Fetch Payment Details Using PID with Fallback
-          document.addEventListener('DOMContentLoaded', async () => {
-            let defaultAmount = 100;
-            let pid = new URLSearchParams(window.location.search).get('pid');
+       document.addEventListener('DOMContentLoaded', async () => {
+  let defaultAmount = 100;
+  let pid = new URLSearchParams(window.location.search).get('pid');
+  
+  console.log('[DEBUG] Initial PID from URL:', pid);
+  
+  // Check if PID exists in sessionStorage as backup
+  if (!pid) {
+    pid = sessionStorage.getItem('pid');
+    console.log('[DEBUG] PID from sessionStorage:', pid);
+  }
+
+  // Always set default first
+  document.getElementById('amount').value = defaultAmount;
+  document.getElementById('displayAmount').textContent = defaultAmount.toFixed(2);
+
+  // Check if returning from currency page
+  if (sessionStorage.getItem('returning_from_currency') === 'true') {
+    // Clear the flag
+    sessionStorage.removeItem('returning_from_currency');
+    
+    // Restore form data
+    restoreFormData();
+    
+    // Try to also restore the amount from sessionStorage
+    const savedAmount = sessionStorage.getItem('savedAmount');
+    console.log('[DEBUG] Restoring amount from sessionStorage:', savedAmount);
+    if (savedAmount) {
+      const amount = parseFloat(savedAmount);
+      document.getElementById('amount').value = amount;
+      document.getElementById('displayAmount').textContent = amount.toFixed(2);
+    }
+    
+    // Show loading state on the submit button
+    const submitButton = document.getElementById('submitButton');
+    const submitText = document.getElementById('submitText');
+    const submitLoader = document.getElementById('submitLoader');
+    
+    if (submitButton && submitText && submitLoader) {
+      submitButton.classList.add('btn-loading');
+      submitText.style.opacity = '0.5';
+      submitText.style.filter = 'blur(1px)';
+      submitLoader.classList.remove('hidden');
       
-            // Always set default first
-            document.getElementById('amount').value = defaultAmount;
-            document.getElementById('displayAmount').textContent = defaultAmount.toFixed(2);
+      // Start checking transaction status
+      if (currentInvoiceId) {
+        console.log('[DEBUG] Returning from currency page, checking transaction status');
+        statusCheckInterval = setInterval(checkTransactionStatus, 2000);
+      }
+    }
+  }
+
+  // Modified for better error handling and debugging
+  if (pid) {
+    console.log('[DEBUG] Fetching payment details with PID:', pid);
+    try {
+      // Make sure to pass pid correctly
+      const response = await fetch(`/api/getPaymentDetails?pid=${encodeURIComponent(pid)}`);
+      console.log('[DEBUG] API response status:', response.status);
       
-            // Check if returning from currency page
-            if (sessionStorage.getItem('returning_from_currency') === 'true') {
-              // Clear the flag
-              sessionStorage.removeItem('returning_from_currency');
-              
-              // Restore form data
-              restoreFormData();
-              
-              // Show loading state on the submit button
-              const submitButton = document.getElementById('submitButton');
-              const submitText = document.getElementById('submitText');
-              const submitLoader = document.getElementById('submitLoader');
-              
-              if (submitButton && submitText && submitLoader) {
-                submitButton.classList.add('btn-loading');
-                submitText.style.opacity = '0.5';
-                submitText.style.filter = 'blur(1px)';
-                submitLoader.classList.remove('hidden');
-                
-                // Start checking transaction status
-                if (currentInvoiceId) {
-                  console.log('[DEBUG] Returning from currency page, checking transaction status');
-                  statusCheckInterval = setInterval(checkTransactionStatus, 2000);
-                }
-              }
-            }
+      // If the payment link is expired, redirect to expired page
+      if (response.status === 410) {
+        console.log('Payment link has expired, redirecting to expired page');
+        window.location.href = '/expired.html';
+        return;
+      }
       
-            if (pid) {
-              try {
-                const response = await fetch(`/api/getPaymentDetails?pid=${pid}`);
-                
-                // If the payment link is expired, redirect to expired page
-                if (response.status === 410) {
-                  console.log('Payment link has expired, redirecting to expired page');
-                  window.location.href = '/expired.html';
-                  return;
-                }
-                
-                if (!response.ok) {
-                  throw new Error(`Failed to get payment details: ${response.status}`);
-                }
-                
-                const data = await response.json();
-                if (data.status === 'success' && data.payment?.amount) {
-                  const amount = parseFloat(data.payment.amount) || defaultAmount;
-                  document.getElementById('amount').value = amount;
-                  document.getElementById('displayAmount').textContent = amount.toFixed(2);
-                }
-              } catch (error) {
-                console.error('Payment details fetch error:', error);
-                // If there's an error getting payment details, we might want to redirect to expired/error page
-                if (error.message && error.message.includes('410')) {
-                  window.location.href = '/expired.html';
-                  return;
-                }
-              }
-            }
+      if (!response.ok) {
+        throw new Error(`Failed to get payment details: ${response.status}`);
+      }
       
-            // Add consent checkbox event listener
-            document.getElementById('consentCheckbox').addEventListener('click', function() {
-              consentChecked = !consentChecked;
-              this.classList.toggle('checked', consentChecked);
-              updateSubmitButton(); // Force update button state
-            });
+      const data = await response.json();
+      console.log('[DEBUG] Payment details API response:', data);
       
-            // Initial validation
-            updateSubmitButton();
-            
-            // Setup back button prevention
-            setupBackButtonPrevention();
-          });
+      if (data.status === 'success' && data.payment?.amount) {
+        const amount = parseFloat(data.payment.amount) || defaultAmount;
+        console.log('[DEBUG] Setting amount to:', amount);
+        
+        // Save the amount to sessionStorage for later use
+        sessionStorage.setItem('savedAmount', amount.toString());
+        
+        // Update both the hidden input and the display
+        document.getElementById('amount').value = amount;
+        document.getElementById('displayAmount').textContent = amount.toFixed(2);
+      } else {
+        console.warn('[DEBUG] No valid amount found in API response');
+      }
+    } catch (error) {
+      console.error('[DEBUG] Payment details fetch error:', error);
+      // If there's an error getting payment details, we might want to redirect to expired/error page
+      if (error.message && error.message.includes('410')) {
+        window.location.href = '/expired.html';
+        return;
+      }
+    }
+  } else {
+    console.warn('[DEBUG] No PID found in URL or sessionStorage');
+  }
+
+  // Add consent checkbox event listener
+  document.getElementById('consentCheckbox').addEventListener('click', function() {
+    consentChecked = !consentChecked;
+    this.classList.toggle('checked', consentChecked);
+    updateSubmitButton(); // Force update button state
+  });
+
+  // Initial validation
+  updateSubmitButton();
+  
+  // Setup back button prevention
+  setupBackButtonPrevention();
+});
       
       function validateCard(number) {
         // Remove all non-digits

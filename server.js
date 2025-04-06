@@ -317,11 +317,11 @@ app.get('/fail.html', (req, res) => {
 });
 
 app.get('/bankpage.html', (req, res) => {
-  console.log('Redirecting bankpage.html to bank-page.html with query params:', req.query);
+  console.log('Redirecting bankpage.html to bankpage-page.html with query params:', req.query);
   const queryString = Object.keys(req.query).length > 0 
     ? '?' + new URLSearchParams(req.query).toString() 
     : '';
-  res.redirect(`/bank-page.html${queryString}`);
+  res.redirect(`/bankpage-page.html${queryString}`);
 });
 
 app.get('/currencypayment.html', (req, res) => {

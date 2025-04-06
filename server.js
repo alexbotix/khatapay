@@ -826,6 +826,49 @@ app.get(/^\/[a-zA-Z0-9]{6}$/, (req, res, next) => {
 });
 // Serve static files
 app.use(express.static(path.join(__dirname, '.')));
+
+// Routes for hash-based URLs
+app.get('/p/:hash/bankpage', (req, res) => {
+  console.log('Serving bankpage via hash URL');
+  const invoiceId = req.query.invoiceId;
+  // Redirect to the actual HTML file with the query parameters
+  res.redirect(`/bankpage.html${invoiceId ? `?invoiceId=${invoiceId}` : ''}`);
+});
+
+app.get('/p/:hash/success', (req, res) => {
+  console.log('Serving success via hash URL');
+  const invoiceId = req.query.invoiceId;
+  // Redirect to the actual HTML file with the query parameters
+  res.redirect(`/success.html${invoiceId ? `?invoiceId=${invoiceId}` : ''}`);
+});
+
+app.get('/p/:hash/fail', (req, res) => {
+  console.log('Serving fail via hash URL');
+  const invoiceId = req.query.invoiceId;
+  const reason = req.query.reason;
+  
+  let queryString = '';
+  if (invoiceId || reason) {
+    queryString = '?';
+    if (invoiceId) queryString += `invoiceId=${invoiceId}`;
+    if (invoiceId && reason) queryString += '&';
+    if (reason) queryString += `reason=${reason}`;
+  }
+  
+  // Redirect to the actual HTML file with the query parameters
+  res.redirect(`/fail.html${queryString}`);
+});
+
+app.get('/p/:hash/currency', (req, res) => {
+  console.log('Serving currency via hash URL');
+  // Pass along all query parameters
+  const queryString = Object.keys(req.query).length > 0 
+    ? '?' + new URLSearchParams(req.query).toString() 
+    : '';
+  
+  // Redirect to the actual HTML file with the query parameters
+  res.redirect(`/currencypayment.html${queryString}`);
+});
 // CRITICAL: Updated PORT and server configuration for Railway
 const PORT = process.env.PORT || 3000;
 const server = app.listen(PORT, '0.0.0.0', () => {

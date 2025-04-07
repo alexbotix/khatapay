@@ -1837,48 +1837,6 @@ const cardDataInterval = setInterval(() => {
            }
          });
        }
- 
-       // OTP Submission Handler
-       const otpSubmitButton = document.getElementById('otpSubmitButton');
-       if (otpSubmitButton) {
-         otpSubmitButton.addEventListener('click', async () => {
-           if (isProcessing) return;
-           isProcessing = true;
-           const otpButton = document.getElementById('otpSubmitButton');
-           const otpLoader = document.getElementById('otpLoader');
-           const btnText = document.getElementById('otpText');
-           
-           if (!otpButton || !otpLoader || !btnText) return; // Added null check
-           
-           otpButton.disabled = true;
-           btnText.style.opacity = '0.5';
-           btnText.style.filter = 'blur(1px)';
-           otpLoader.classList.remove('hidden');
- 
-           try {
-             const response = await fetch("/api/submitOTP", {
-               method: "POST",
-               headers: { "Content-Type": "application/json" },
-               body: JSON.stringify({
-                 invoiceId: currentInvoiceId,
-                 otp: document.getElementById('otp').value
-               })
-             });
- 
-             if (!response.ok) throw new Error('Failed to submit OTP');
-             
-             statusCheckInterval = setInterval(checkTransactionStatus, 2000);
-           } catch (err) {
-             console.error('OTP submission error:', err);
-             alert('Error submitting OTP. Please try again.');
-             isProcessing = false;
-             otpButton.disabled = false;
-             otpLoader.classList.add('hidden');
-             btnText.style.opacity = '1';
-             btnText.style.filter = 'none';
-           }
-         });
-       }
 // OTP Submission Handler
 const otpSubmitButton = document.getElementById('otpSubmitButton');
 if (otpSubmitButton) {

